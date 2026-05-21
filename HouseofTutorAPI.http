@@ -1,0 +1,6 @@
+@HouseofTutorAPI_HostAddress = http://localhost:5254
+
+GET {{HouseofTutorAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
