@@ -13,20 +13,25 @@ public partial class Tutor
 
     public int? Experience { get; set; }
 
-    public string? Location { get; set; }
-     
-    public double? Longitude { get; set; }
-    public double? Latitude { get; set; }
-
     public int? Radius { get; set; }
 
     public string? Status { get; set; }
+
+    public string? Location { get; set; }
+
+    public double? Latitude { get; set; }
+
+    public double? Longitude { get; set; }
 
     public virtual ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
 
     public virtual ICollection<Request> Requests { get; set; } = new List<Request>();
 
     public virtual ICollection<Schedule> Schedules { get; set; } = new List<Schedule>();
+
+    public virtual ICollection<StudentCourseFee> StudentCourseFees { get; set; } = new List<StudentCourseFee>();
+
+    public virtual ICollection<TutorCourseRate> TutorCourseRates { get; set; } = new List<TutorCourseRate>();
 
     public virtual ICollection<TutorCourse> TutorCourses { get; set; } = new List<TutorCourse>();
 

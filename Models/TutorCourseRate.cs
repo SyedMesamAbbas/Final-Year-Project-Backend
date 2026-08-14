@@ -3,18 +3,19 @@ using System.Collections.Generic;
 
 namespace HouseofTutorAPI.Models;
 
-public partial class TutorCourse
+public partial class TutorCourseRate
 {
+    public int RateId { get; set; }
+
     public int TutorId { get; set; }
 
     public int CourseId { get; set; }
 
-    public string? Grade { get; set; }
+    public decimal HourlyRate { get; set; }
 
-    public bool IsCompleted { get; set; }
+    public decimal? AdminSetMinHourlyRate { get; set; }
 
-    public DateTime? CompletedDate { get; set; }
-
+    public decimal? AdminSetMaxHourlyRate { get; set; }
     public virtual Course Course { get; set; } = null!;
 
     public virtual Tutor Tutor { get; set; } = null!;

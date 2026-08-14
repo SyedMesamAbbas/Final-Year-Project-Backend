@@ -1,0 +1,32 @@
+Add-Migration AddStartEndDateAndType
+Update-Database
+
+
+Add-Migration AddStudentScheduleFields
+Update-Database
+
+Add-Migration AddRequestSchedulingFields
+Update-Database
+
+Add-Migration AddCourseCompletionFieldsToTutorCourse
+Update-Database
+
+
+Add-Migration AddFeedbackByToFeedback
+Update-Database
+
+
+Add-Migration AddFatherCnicToStudent
+Update-Database
+
+
+Add-Migration AddStudentStatus
+Update-Database
+
+
+To Add the following 3 table's
+Tutor_Course_Rate
+Student_Course_Fee
+Payment
+This command:
+Scaffold-DbContext "Server=DESKTOP-FANR662\SQLEXPRESS;Database=HouseofTutor;Trusted_Connection=True;TrustServerCertificate=True;" Microsoft.EntityFrameworkCore.SqlServer -OutputDir Models -Context HouseofTutorContext -Force

@@ -1,21 +1,23 @@
-﻿namespace HouseofTutorAPI.Models
+﻿using System;
+using System.Collections.Generic;
+
+namespace HouseofTutorAPI.Models;
+
+public partial class StudentSchedule
 {
-    public class StudentSchedule
-    {
-        public int ScheduleId { get; set; }
+    public int ScheduleId { get; set; }
 
-        public int? StudentId { get; set; }
+    public int? StudentId { get; set; }
 
-        public string? Day { get; set; }
+    public string? Day { get; set; }
 
-        public string? Time { get; set; }
+    public string? Time { get; set; }
 
-        public DateTime? StartDate { get; set; }
+    public DateOnly? StartDate { get; set; }
 
-        public DateTime? EndDate { get; set; }
+    public DateOnly? EndDate { get; set; }
 
-        public string? Type { get; set; }
+    public string? Type { get; set; }
 
-        public virtual Student? Student { get; set; }
-    }
+    public virtual Student? Student { get; set; }
 }

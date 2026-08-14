@@ -11,12 +11,13 @@ public partial class Schedule
 
     public string? Day { get; set; }
 
-    public DateTime? StartDate { get; set; }
-    
-    public DateTime? EndDate { get; set; }
+    public string? Time { get; set; }
+
+    public DateOnly? StartDate { get; set; }
+
+    public DateOnly? EndDate { get; set; }
 
     public string? Type { get; set; }
 
-    public string? Time { get; set; }
     public virtual Tutor? Tutor { get; set; }
 }

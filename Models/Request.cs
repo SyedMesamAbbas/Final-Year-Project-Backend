@@ -16,7 +16,22 @@ public partial class Request
     public DateTime? RequestDate { get; set; }
 
     public string? Status { get; set; }
+
     public string? Time { get; set; }
+
+    public DateOnly? ClassDate { get; set; }
+
+    public string? Day { get; set; }
+
+    public string? RequestType { get; set; }
+
+    public int? ParentRequestId { get; set; }
+
+    public string? LearningMode { get; set; }          // FullTime / SpecificTime
+
+    public int? LearningDuration { get; set; }         // e.g. 2
+
+    public string? LearningDurationUnit { get; set; }  // Days / Weeks / Months
 
     public virtual Course? Course { get; set; }
 

@@ -13,7 +13,11 @@ public partial class Course
 
     public virtual ICollection<Request> Requests { get; set; } = new List<Request>();
 
-    public virtual ICollection<TutorCourse> TutorCourses { get; set; } = new List<TutorCourse>();
+    public virtual ICollection<StudentCourseFee> StudentCourseFees { get; set; } = new List<StudentCourseFee>();
 
     public virtual ICollection<StudentCourse> StudentCourses { get; set; } = new List<StudentCourse>();
+
+    public virtual ICollection<TutorCourseRate> TutorCourseRates { get; set; } = new List<TutorCourseRate>();
+
+    public virtual ICollection<TutorCourse> TutorCourses { get; set; } = new List<TutorCourse>();
 }

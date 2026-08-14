@@ -28,88 +28,399 @@ namespace HouseofTutorAPI.Controllers
         }
 
         //REGISTER 
+        //[HttpPost("register")]
+        //public async Task<IActionResult> Register([FromBody] RegisterDTO dto)
+        //{
+        //    if (dto == null)
+        //        return BadRequest(new { message = "Invalid data" });
+
+        //    dto.email = dto.email?.Trim().ToLower();
+
+        //    if (await db.Users.AnyAsync(u => u.Email == dto.email))
+        //    {
+        //        return BadRequest(new { message = "Email already exists" });
+        //    }
+
+        //    if (dto.role != "Student" && dto.role != "Tutor")
+        //    {
+        //        return BadRequest(new { message = "Invalid role" });
+        //    }
+
+        //    var user = new User
+        //    {
+        //        FullName = dto.fullName,
+        //        Email = dto.email,
+        //        Phone = dto.phone,
+        //        Cnic = dto.cnic,
+        //        Password = dto.password,
+        //        Role = dto.role
+        //    };
+
+        //    db.Users.Add(user);
+        //    await db.SaveChangesAsync();
+        //    if (dto.role == "Student")
+        //    {
+        //        var student = new Student
+        //        {
+        //            UserId = user.UserId,
+        //            Location = null,
+        //            FatherCnic = dto.FatherCNIC?.Replace("-", "").Trim()
+        //        };
+
+        //        db.Students.Add(student);
+        //    }
+        //    else if (dto.role == "Tutor")
+        //    {
+        //        var tutor = new Tutor
+        //        {
+        //            UserId = user.UserId,
+        //            Qualification = dto.qualification,
+        //            Experience = dto.experience ?? 0,
+        //            Radius = dto.radius ?? 0,
+        //            Location = null,
+        //            Status = "Active"
+        //        };
+
+        //        db.Tutors.Add(tutor);
+        //    }
+
+        //    await db.SaveChangesAsync();
+
+        //    return Ok(new
+        //    {
+        //        message = "User registered successfully",
+        //        userId = user.UserId
+        //    });
+        //}
+        //[HttpPost("register")]
+        //public async Task<IActionResult> Register([FromBody] RegisterDTO dto)
+        //{
+        //    try
+        //    {
+        //        if (dto == null)
+        //            return BadRequest(new { message = "Invalid data" });
+
+        //        dto.email = dto.email?.Trim().ToLower();
+
+        //        if (await db.Users.AnyAsync(u => u.Email == dto.email))
+        //        {
+        //            return BadRequest(new { message = "Email already exists" });
+        //        }
+
+        //        if (dto.role != "Student" && dto.role != "Tutor")
+        //        {
+        //            return BadRequest(new { message = "Invalid role" });
+        //        }
+
+        //        var user = new User
+        //        {
+        //            FullName = dto.fullName,
+        //            Email = dto.email,
+        //            Phone = dto.phone,
+        //            Cnic = dto.cnic,
+        //            Password = dto.password,
+        //            Role = dto.role
+        //        };
+
+        //        db.Users.Add(user);
+        //        await db.SaveChangesAsync();
+
+        //        if (dto.role == "Student")
+        //        {
+        //            db.Students.Add(new Student
+        //            {
+        //                UserId = user.UserId,
+        //                Location = null,
+        //                FatherCnic = dto.FatherCNIC?.Replace("-", "").Trim()
+        //            });
+        //        }
+        //        else
+        //        {
+        //            db.Tutors.Add(new Tutor
+        //            {
+        //                UserId = user.UserId,
+        //                Qualification = dto.qualification,
+        //                Experience = dto.experience ?? 0,
+        //                Radius = dto.radius ?? 0,
+        //                Location = null,
+        //                Status = "Active"
+        //            });
+        //        }
+
+        //        await db.SaveChangesAsync();
+
+        //        var parentExists = await db.Users.AnyAsync(x =>
+        //            x.Role == "Parent" &&
+        //            x.Cnic == dto.FatherCNIC);
+
+        //        if (!parentExists)
+        //        {
+        //            db.Users.Add(new User
+        //            {
+        //                FullName = "Parent",
+        //                Email = dto.FatherCNIC,
+        //                Cnic = dto.FatherCNIC,
+        //                Password = dto.FatherCNIC.Replace("-", "").Substring(0, 5),
+        //                Role = "Parent"
+        //            });
+
+        //            await db.SaveChangesAsync();
+        //        }
+
+        //        return Ok(new
+        //        {
+        //            message = "User registered successfully",
+        //            userId = user.UserId
+        //        });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return BadRequest(new
+        //        {
+        //            message = ex.Message,
+        //            inner = ex.InnerException?.Message
+        //        });
+        //    }
+        //}
+
+
+
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDTO dto)
         {
-            if (dto == null)
-                return BadRequest(new { message = "Invalid data" });
+            using var transaction = await db.Database.BeginTransactionAsync();
 
-            dto.email = dto.email?.Trim().ToLower();
-
-            if (await db.Users.AnyAsync(u => u.Email == dto.email))
+            try
             {
-                return BadRequest(new { message = "Email already exists" });
-            }
+                if (dto == null)
+                    return BadRequest(new { message = "Invalid data." });
 
-            if (dto.role != "Student" && dto.role != "Tutor")
-            {
-                return BadRequest(new { message = "Invalid role" });
-            }
+                dto.email = dto.email?.Trim().ToLower();
 
-            var user = new User
-            {
-                FullName = dto.fullName,
-                Email = dto.email,
-                Phone = dto.phone,
-                Cnic = dto.cnic,
-                Password = dto.password,
-                Role = dto.role
-            };
+                // Normalize Father CNIC
+                string fatherCnic = dto.FatherCNIC?.Replace("-", "").Trim();
 
-            db.Users.Add(user);
-            await db.SaveChangesAsync();
-            if (dto.role == "Student")
-            {
-                var student = new Student
+                // Check email already exists
+                if (await db.Users.AnyAsync(u => u.Email == dto.email))
                 {
-                    UserId = user.UserId,
-                    Location = null
+                    return BadRequest(new { message = "Email already exists." });
+                }
+
+                // Only Student and Tutor are allowed to register
+                if (dto.role != "Student" && dto.role != "Tutor")
+                {
+                    return BadRequest(new { message = "Invalid role." });
+                }
+
+                // Create Student/Tutor User
+                var user = new User
+                {
+                    FullName = dto.fullName,
+                    Email = dto.email,
+                    Phone = dto.phone,
+                    Cnic = dto.cnic,
+                    Password = dto.password,
+                    Role = dto.role == "Student" ? "Student" : "Tutor"
                 };
 
-                db.Students.Add(student);
-            }
-            else if (dto.role == "Tutor")
-            {
-                var tutor = new Tutor
+                db.Users.Add(user);
+                await db.SaveChangesAsync();
+
+                if (dto.role == "Student")
                 {
-                    UserId = user.UserId,
-                    Qualification = dto.qualification,
-                    Experience = dto.experience ?? 0,
-                    Radius = dto.radius ?? 0,
-                    Location = null,
-                    Status = "Active"
-                };
+                    db.Students.Add(new Student
+                    {
+                        UserId = user.UserId,
+                        FatherCnic = fatherCnic,
+                        Location = null
+                    });
 
-                db.Tutors.Add(tutor);
+                    // Create Parent account if it doesn't already exist
+                    bool parentExists = await db.Users.AnyAsync(x =>
+                        x.Role == "Parent" &&
+                        x.Cnic == fatherCnic);
+
+                    if (!parentExists)
+                    {
+                        string parentPassword = fatherCnic.Length >= 5
+                            ? fatherCnic.Substring(0, 5)
+                            : fatherCnic;
+
+                        var parentUser = new User
+                        {
+                            FullName = "Parent",
+                            Email = fatherCnic,
+                            Phone = null,
+                            Cnic = fatherCnic,
+                            Password = parentPassword,
+                            Role = "Parent"
+                        };
+
+                        db.Users.Add(parentUser);
+                    }
+                }
+                else
+                {
+                    db.Tutors.Add(new Tutor
+                    {
+                        UserId = user.UserId,
+                        Qualification = dto.qualification,
+                        Experience = dto.experience ?? 0,
+                        Radius = dto.radius ?? 0,
+                        Location = null,
+                        Status = "Pending"
+                    });
+                }
+
+                await db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    message = "User registered successfully.",
+                    userId = user.UserId
+                });
             }
-
-            await db.SaveChangesAsync();
-
-            return Ok(new
+            catch (Exception ex)
             {
-                message = "User registered successfully",
-                userId = user.UserId
-            });
+                await transaction.RollbackAsync();
+
+                return BadRequest(new
+                {
+                    message = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
         }
 
         //LOGIN
+        //[HttpPost("login")]
+        //public async Task<IActionResult> Login([FromBody] LoginDTO dto)
+        //{
+        //    if (dto == null || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
+        //        return BadRequest(new { message = "Email and password required" });
+
+        //    var email = dto.Email.Trim().ToLower();
+        //    var password = dto.Password.Trim();
+
+        //    var user = await db.Users
+        //        .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
+
+        //    if (user == null)
+        //        return Unauthorized(new { message = "Invalid email" });
+
+        //    if (user.Password.Trim() != password)
+        //        return Unauthorized(new { message = "Invalid password" });
+
+        //    object? roleData = null;
+        //    double? latitude = null;
+        //    double? longitude = null;
+
+        //    if (user.Role == "Tutor")
+        //    {
+        //        var tutor = await db.Tutors
+        //            .Where(x => x.UserId == user.UserId)
+        //            .FirstOrDefaultAsync();
+
+        //        if (tutor != null)
+        //        {
+        //            roleData = new
+        //            {
+        //                qualification = tutor.Qualification,
+        //                experience = tutor.Experience,
+        //                location = tutor.Location,
+        //                radius = tutor.Radius,
+        //                status = "Pending"//tutor.Status
+        //            };
+
+        //            latitude = tutor.Latitude;
+        //            longitude = tutor.Longitude;
+        //        }
+        //    }
+        //    else if (user.Role == "Student")
+        //    {
+        //        var student = await db.Students
+        //            .Where(x => x.UserId == user.UserId)
+        //            .FirstOrDefaultAsync();
+
+        //        if (student != null)
+        //        {
+        //            roleData = new
+        //            {
+        //                location = student.Location
+        //            };
+
+        //            latitude = student.Latitude;
+        //            longitude = student.Longitude;
+        //        }
+        //    }
+        //    else if (user.Role == "Admin")
+        //    {
+        //        roleData = new
+        //        {
+        //            access = "Full Admin Access"
+        //        };
+        //    }
+
+        //    var token = GenerateJwtToken(
+        //        user.UserId.ToString(),
+        //        user.Role,
+        //        user.FullName,
+        //        user.Email,
+        //        latitude,
+        //        longitude
+        //    );
+
+
+        //    return Ok(new
+        //    {
+        //        token,
+        //        userId = user.UserId,
+        //        role = user.Role,
+        //        fullName = user.FullName,
+        //        email = user.Email,
+        //        phone = user.Phone,
+        //        roleData,
+        //        latitude,
+        //        longitude,
+        //        message = "Login successful"
+        //    });
+        //}
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDTO dto)
         {
-            if (dto == null || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
-                return BadRequest(new { message = "Email and password required" });
+            if (dto == null ||
+                string.IsNullOrWhiteSpace(dto.Email) ||
+                string.IsNullOrWhiteSpace(dto.Password))
+            {
+                return BadRequest(new { message = "Email/CNIC and password required" });
+            }
 
-            var email = dto.Email.Trim().ToLower();
-            var password = dto.Password.Trim();
+            string login = dto.Email.Trim();
+            string password = dto.Password.Trim();
 
-            var user = await db.Users
-                .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
+            string normalizedEmail = login.ToLower();
+            string normalizedCnic = login.Replace("-", "").Trim();
+
+            var user = await db.Users.FirstOrDefaultAsync(u =>
+                u.Email.ToLower() == normalizedEmail ||
+                u.Cnic.Replace("-", "") == normalizedCnic);
 
             if (user == null)
-                return Unauthorized(new { message = "Invalid email" });
+            {
+                return Unauthorized(new
+                {
+                    message = "Invalid email/CNIC"
+                });
+            }
 
-            if (user.Password.Trim() != password)
-                return Unauthorized(new { message = "Invalid password" });
+            if ((user.Password ?? "").Trim() != password)
+            {
+                return Unauthorized(new
+                {
+                    message = "Invalid password"
+                });
+            }
 
             object? roleData = null;
             double? latitude = null;
@@ -118,8 +429,7 @@ namespace HouseofTutorAPI.Controllers
             if (user.Role == "Tutor")
             {
                 var tutor = await db.Tutors
-                    .Where(x => x.UserId == user.UserId)
-                    .FirstOrDefaultAsync();
+                    .FirstOrDefaultAsync(x => x.UserId == user.UserId);
 
                 if (tutor != null)
                 {
@@ -129,7 +439,7 @@ namespace HouseofTutorAPI.Controllers
                         experience = tutor.Experience,
                         location = tutor.Location,
                         radius = tutor.Radius,
-                        status = tutor.Status
+                        status = "Pending" // tutor.Status
                     };
 
                     latitude = tutor.Latitude;
@@ -139,8 +449,7 @@ namespace HouseofTutorAPI.Controllers
             else if (user.Role == "Student")
             {
                 var student = await db.Students
-                    .Where(x => x.UserId == user.UserId)
-                    .FirstOrDefaultAsync();
+                    .FirstOrDefaultAsync(x => x.UserId == user.UserId);
 
                 if (student != null)
                 {
@@ -152,6 +461,20 @@ namespace HouseofTutorAPI.Controllers
                     latitude = student.Latitude;
                     longitude = student.Longitude;
                 }
+            }
+            else if (user.Role == "Parent")
+            {
+                roleData = new
+                {
+                    access = "Parent Access"
+                };
+            }
+            else if (user.Role == "Admin")
+            {
+                roleData = new
+                {
+                    access = "Full Admin Access"
+                };
             }
 
             var token = GenerateJwtToken(
@@ -177,6 +500,7 @@ namespace HouseofTutorAPI.Controllers
                 message = "Login successful"
             });
         }
+        
 
         [HttpPost("update-location")]
         public async Task<IActionResult> UpdateLocation([FromBody] UpdateLocationDTO dto)
@@ -323,6 +647,7 @@ namespace HouseofTutorAPI.Controllers
         public int? experience { get; set; }
         public int? radius { get; set; }
         public string? location { get; set; }
+        public string? FatherCNIC { get; set; }
     }
 
     public class UpdateLocationDTO

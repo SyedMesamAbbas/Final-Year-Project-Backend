@@ -4,6 +4,7 @@ using HouseofTutorAPI.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HouseofTutorAPI.Migrations
 {
     [DbContext(typeof(HouseofTutorContext))]
-    partial class HouseofTutorContextModelSnapshot : ModelSnapshot
+    [Migration("20260707152710_AddFatherCnicToStudent")]
+    partial class AddFatherCnicToStudent
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -63,8 +66,10 @@ namespace HouseofTutorAPI.Migrations
                         .HasColumnName("course_id");
 
                     b.Property<string>("FeedbackBy")
+                        .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
                         .HasColumnName("feedback_by");
 
                     b.Property<DateTime?>("FeedbackDate")
@@ -97,61 +102,6 @@ namespace HouseofTutorAPI.Migrations
                     b.ToTable("Feedback", (string)null);
                 });
 
-            modelBuilder.Entity("HouseofTutorAPI.Models.Payment", b =>
-                {
-                    b.Property<int>("PaymentId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasColumnName("payment_id");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PaymentId"));
-
-                    b.Property<decimal?>("Amount")
-                        .HasColumnType("decimal(10, 2)")
-                        .HasColumnName("amount");
-
-                    b.Property<int?>("FeeId")
-                        .HasColumnType("int")
-                        .HasColumnName("fee_id");
-
-                    b.Property<string>("ParentStatus")
-                        .HasMaxLength(20)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(20)")
-                        .HasColumnName("parent_status");
-
-                    b.Property<DateTime?>("PaymentDate")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasColumnName("payment_date")
-                        .HasDefaultValueSql("(getdate())");
-
-                    b.Property<string>("PaymentType")
-                        .HasMaxLength(20)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(20)")
-                        .HasColumnName("payment_type");
-
-                    b.Property<string>("Remarks")
-                        .HasMaxLength(200)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(200)")
-                        .HasColumnName("remarks");
-
-                    b.Property<string>("TutorStatus")
-                        .HasMaxLength(20)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(20)")
-                        .HasColumnName("tutor_status");
-
-                    b.HasKey("PaymentId")
-                        .HasName("PK__Payment__ED1FC9EA8811CF21");
-
-                    b.HasIndex("FeeId");
-
-                    b.ToTable("Payment", (string)null);
-                });
-
             modelBuilder.Entity("HouseofTutorAPI.Models.Request", b =>
                 {
                     b.Property<int>("RequestId")
@@ -175,22 +125,6 @@ namespace HouseofTutorAPI.Migrations
                         .HasColumnType("varchar(20)")
                         .HasColumnName("day");
 
-                    b.Property<int?>("LearningDuration")
-                        .HasColumnType("int")
-                        .HasColumnName("learning_duration");
-
-                    b.Property<string>("LearningDurationUnit")
-                        .HasMaxLength(20)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(20)")
-                        .HasColumnName("learning_duration_unit");
-
-                    b.Property<string>("LearningMode")
-                        .HasMaxLength(20)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(20)")
-                        .HasColumnName("learning_mode");
-
                     b.Property<int?>("ParentRequestId")
                         .HasColumnType("int")
                         .HasColumnName("parent_request_id");
@@ -208,18 +142,14 @@ namespace HouseofTutorAPI.Migrations
                         .HasColumnName("request_type");
 
                     b.Property<string>("Status")
-                        .HasMaxLength(50)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("StudentId")
                         .HasColumnType("int")
                         .HasColumnName("student_id");
 
                     b.Property<string>("Time")
-                        .HasMaxLength(100)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(100)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("TutorId")
                         .HasColumnType("int")
@@ -229,6 +159,8 @@ namespace HouseofTutorAPI.Migrations
                         .HasName("PK__Request__18D3B90F519F4A7A");
 
                     b.HasIndex("CourseId");
+
+                    b.HasIndex("ParentRequestId");
 
                     b.HasIndex("StudentId");
 
@@ -252,18 +184,18 @@ namespace HouseofTutorAPI.Migrations
                         .HasColumnType("varchar(20)")
                         .HasColumnName("day");
 
-                    b.Property<DateOnly?>("EndDate")
-                        .HasColumnType("date")
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("datetime")
                         .HasColumnName("end_date");
 
-                    b.Property<DateOnly?>("StartDate")
-                        .HasColumnType("date")
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("datetime")
                         .HasColumnName("start_date");
 
                     b.Property<string>("Time")
-                        .HasMaxLength(100)
+                        .HasMaxLength(20)
                         .IsUnicode(false)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("varchar(20)")
                         .HasColumnName("time");
 
                     b.Property<int?>("TutorId")
@@ -271,9 +203,7 @@ namespace HouseofTutorAPI.Migrations
                         .HasColumnName("tutor_id");
 
                     b.Property<string>("Type")
-                        .HasMaxLength(50)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("ScheduleId")
                         .HasName("PK__Schedule__C46A8A6FEF990444");
@@ -293,27 +223,19 @@ namespace HouseofTutorAPI.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StudentId"));
 
                     b.Property<string>("FatherCnic")
-                        .HasMaxLength(20)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(20)")
-                        .HasColumnName("Father_Cnic");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<double?>("Latitude")
                         .HasColumnType("float");
 
                     b.Property<string>("Location")
+                        .HasMaxLength(100)
                         .IsUnicode(false)
-                        .HasColumnType("varchar(max)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("location");
 
                     b.Property<double?>("Longitude")
                         .HasColumnType("float");
-
-                    b.Property<string>("Status")
-                        .HasMaxLength(20)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(20)")
-                        .HasColumnName("status");
 
                     b.Property<int?>("UserId")
                         .HasColumnType("int")
@@ -337,62 +259,11 @@ namespace HouseofTutorAPI.Migrations
                         .HasColumnType("int")
                         .HasColumnName("course_id");
 
-                    b.Property<string>("Grade")
-                        .HasMaxLength(10)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(10)")
-                        .HasColumnName("grade");
-
-                    b.HasKey("StudentId", "CourseId")
-                        .HasName("PK__Student___D2C2E9E09DC4D622");
+                    b.HasKey("StudentId", "CourseId");
 
                     b.HasIndex("CourseId");
 
                     b.ToTable("Student_Course", (string)null);
-                });
-
-            modelBuilder.Entity("HouseofTutorAPI.Models.StudentCourseFee", b =>
-                {
-                    b.Property<int>("FeeId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasColumnName("fee_id");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FeeId"));
-
-                    b.Property<int>("CourseId")
-                        .HasColumnType("int")
-                        .HasColumnName("course_id");
-
-                    b.Property<DateTime?>("CreatedDate")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasColumnName("created_date")
-                        .HasDefaultValueSql("(getdate())");
-
-                    b.Property<int>("StudentId")
-                        .HasColumnType("int")
-                        .HasColumnName("student_id");
-
-                    b.Property<decimal>("TotalFee")
-                        .HasColumnType("decimal(10, 2)")
-                        .HasColumnName("total_fee");
-
-                    b.Property<int>("TutorId")
-                        .HasColumnType("int")
-                        .HasColumnName("tutor_id");
-
-                    b.HasKey("FeeId")
-                        .HasName("PK__Student___A19C8AFB7090B923");
-
-                    b.HasIndex("CourseId");
-
-                    b.HasIndex("TutorId");
-
-                    b.HasIndex(new[] { "StudentId", "TutorId", "CourseId" }, "UQ__Student___80B1FDBC799B4612")
-                        .IsUnique();
-
-                    b.ToTable("Student_Course_Fee", (string)null);
                 });
 
             modelBuilder.Entity("HouseofTutorAPI.Models.StudentSchedule", b =>
@@ -410,11 +281,11 @@ namespace HouseofTutorAPI.Migrations
                         .HasColumnType("varchar(20)")
                         .HasColumnName("day");
 
-                    b.Property<DateOnly?>("EndDate")
+                    b.Property<DateTime?>("EndDate")
                         .HasColumnType("date")
                         .HasColumnName("end_date");
 
-                    b.Property<DateOnly?>("StartDate")
+                    b.Property<DateTime?>("StartDate")
                         .HasColumnType("date")
                         .HasColumnName("start_date");
 
@@ -423,18 +294,18 @@ namespace HouseofTutorAPI.Migrations
                         .HasColumnName("student_id");
 
                     b.Property<string>("Time")
-                        .HasMaxLength(100)
+                        .HasMaxLength(20)
                         .IsUnicode(false)
-                        .HasColumnType("varchar(100)")
+                        .HasColumnType("varchar(20)")
                         .HasColumnName("time");
 
                     b.Property<string>("Type")
                         .HasMaxLength(50)
                         .IsUnicode(false)
-                        .HasColumnType("varchar(50)");
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("type");
 
-                    b.HasKey("ScheduleId")
-                        .HasName("PK__Student___C46A8A6FA77E8ECE");
+                    b.HasKey("ScheduleId");
 
                     b.HasIndex("StudentId");
 
@@ -458,8 +329,9 @@ namespace HouseofTutorAPI.Migrations
                         .HasColumnType("float");
 
                     b.Property<string>("Location")
+                        .HasMaxLength(100)
                         .IsUnicode(false)
-                        .HasColumnType("varchar(max)")
+                        .HasColumnType("varchar(100)")
                         .HasColumnName("location");
 
                     b.Property<double?>("Longitude")
@@ -503,18 +375,20 @@ namespace HouseofTutorAPI.Migrations
                         .HasColumnType("int")
                         .HasColumnName("course_id");
 
-                    b.Property<DateTime?>("CompletedDate")
-                        .HasColumnType("datetime")
-                        .HasColumnName("completed_date");
-
                     b.Property<string>("Grade")
                         .HasMaxLength(10)
                         .IsUnicode(false)
                         .HasColumnType("varchar(10)")
                         .HasColumnName("grade");
 
-                    b.Property<bool>("IsCompleted")
+                    b.Property<DateTime?>("completed_date")
+                        .HasColumnType("datetime")
+                        .HasColumnName("completed_date");
+
+                    b.Property<bool>("is_completed")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
+                        .HasDefaultValue(false)
                         .HasColumnName("is_completed");
 
                     b.HasKey("TutorId", "CourseId")
@@ -523,45 +397,6 @@ namespace HouseofTutorAPI.Migrations
                     b.HasIndex("CourseId");
 
                     b.ToTable("Tutor_Course", (string)null);
-                });
-
-            modelBuilder.Entity("HouseofTutorAPI.Models.TutorCourseRate", b =>
-                {
-                    b.Property<int>("RateId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasColumnName("rate_id");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RateId"));
-
-                    b.Property<decimal?>("AdminSetMaxHourlyRate")
-                        .HasColumnType("decimal(10, 2)")
-                        .HasColumnName("admin_set_max_hourly_rate");
-
-                    b.Property<decimal?>("AdminSetMinHourlyRate")
-                        .HasColumnType("decimal(10, 2)")
-                        .HasColumnName("admin_set_min_hourly_rate");
-
-                    b.Property<int>("CourseId")
-                        .HasColumnType("int")
-                        .HasColumnName("course_id");
-
-                    b.Property<decimal>("HourlyRate")
-                        .HasColumnType("decimal(10, 2)")
-                        .HasColumnName("hourly_rate");
-
-                    b.Property<int>("TutorId")
-                        .HasColumnType("int")
-                        .HasColumnName("tutor_id");
-
-                    b.HasKey("RateId")
-                        .HasName("PK__Tutor_Co__75920B42B74529C1");
-
-                    b.HasIndex("CourseId");
-
-                    b.HasIndex("TutorId");
-
-                    b.ToTable("Tutor_Course_Rate", (string)null);
                 });
 
             modelBuilder.Entity("HouseofTutorAPI.Models.User", b =>
@@ -643,22 +478,18 @@ namespace HouseofTutorAPI.Migrations
                     b.Navigation("Tutor");
                 });
 
-            modelBuilder.Entity("HouseofTutorAPI.Models.Payment", b =>
-                {
-                    b.HasOne("HouseofTutorAPI.Models.StudentCourseFee", "Fee")
-                        .WithMany("Payments")
-                        .HasForeignKey("FeeId")
-                        .HasConstraintName("FK__Payment__fee_id__2645B050");
-
-                    b.Navigation("Fee");
-                });
-
             modelBuilder.Entity("HouseofTutorAPI.Models.Request", b =>
                 {
                     b.HasOne("HouseofTutorAPI.Models.Course", "Course")
                         .WithMany("Requests")
                         .HasForeignKey("CourseId")
                         .HasConstraintName("FK__Request__course___5FB337D6");
+
+                    b.HasOne("HouseofTutorAPI.Models.Request", "ParentRequest")
+                        .WithMany("InverseParentRequest")
+                        .HasForeignKey("ParentRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_Request_ParentRequest");
 
                     b.HasOne("HouseofTutorAPI.Models.Student", "Student")
                         .WithMany("Requests")
@@ -671,6 +502,8 @@ namespace HouseofTutorAPI.Migrations
                         .HasConstraintName("FK__Request__tutor_i__5EBF139D");
 
                     b.Navigation("Course");
+
+                    b.Navigation("ParentRequest");
 
                     b.Navigation("Student");
 
@@ -702,37 +535,20 @@ namespace HouseofTutorAPI.Migrations
                     b.HasOne("HouseofTutorAPI.Models.Course", "Course")
                         .WithMany("StudentCourses")
                         .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("FK__Student_C__cours__72C60C4A");
-
-                    b.Navigation("Course");
-                });
-
-            modelBuilder.Entity("HouseofTutorAPI.Models.StudentCourseFee", b =>
-                {
-                    b.HasOne("HouseofTutorAPI.Models.Course", "Course")
-                        .WithMany("StudentCourseFees")
-                        .HasForeignKey("CourseId")
-                        .IsRequired()
-                        .HasConstraintName("FK__Student_C__cours__22751F6C");
+                        .HasConstraintName("FK_StudentCourse_Course");
 
                     b.HasOne("HouseofTutorAPI.Models.Student", "Student")
-                        .WithMany("StudentCourseFees")
+                        .WithMany("StudentCourses")
                         .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("FK__Student_C__stude__208CD6FA");
-
-                    b.HasOne("HouseofTutorAPI.Models.Tutor", "Tutor")
-                        .WithMany("StudentCourseFees")
-                        .HasForeignKey("TutorId")
-                        .IsRequired()
-                        .HasConstraintName("FK__Student_C__tutor__2180FB33");
+                        .HasConstraintName("FK_StudentCourse_Student");
 
                     b.Navigation("Course");
 
                     b.Navigation("Student");
-
-                    b.Navigation("Tutor");
                 });
 
             modelBuilder.Entity("HouseofTutorAPI.Models.StudentSchedule", b =>
@@ -740,7 +556,7 @@ namespace HouseofTutorAPI.Migrations
                     b.HasOne("HouseofTutorAPI.Models.Student", "Student")
                         .WithMany("StudentSchedules")
                         .HasForeignKey("StudentId")
-                        .HasConstraintName("FK__Student_S__stude__6D0D32F4");
+                        .HasConstraintName("FK_StudentSchedule_Student");
 
                     b.Navigation("Student");
                 });
@@ -774,38 +590,20 @@ namespace HouseofTutorAPI.Migrations
                     b.Navigation("Tutor");
                 });
 
-            modelBuilder.Entity("HouseofTutorAPI.Models.TutorCourseRate", b =>
-                {
-                    b.HasOne("HouseofTutorAPI.Models.Course", "Course")
-                        .WithMany("TutorCourseRates")
-                        .HasForeignKey("CourseId")
-                        .IsRequired()
-                        .HasConstraintName("FK__Tutor_Cou__cours__1BC821DD");
-
-                    b.HasOne("HouseofTutorAPI.Models.Tutor", "Tutor")
-                        .WithMany("TutorCourseRates")
-                        .HasForeignKey("TutorId")
-                        .IsRequired()
-                        .HasConstraintName("FK__Tutor_Cou__tutor__1AD3FDA4");
-
-                    b.Navigation("Course");
-
-                    b.Navigation("Tutor");
-                });
-
             modelBuilder.Entity("HouseofTutorAPI.Models.Course", b =>
                 {
                     b.Navigation("Feedbacks");
 
                     b.Navigation("Requests");
 
-                    b.Navigation("StudentCourseFees");
-
                     b.Navigation("StudentCourses");
 
-                    b.Navigation("TutorCourseRates");
-
                     b.Navigation("TutorCourses");
+                });
+
+            modelBuilder.Entity("HouseofTutorAPI.Models.Request", b =>
+                {
+                    b.Navigation("InverseParentRequest");
                 });
 
             modelBuilder.Entity("HouseofTutorAPI.Models.Student", b =>
@@ -814,14 +612,9 @@ namespace HouseofTutorAPI.Migrations
 
                     b.Navigation("Requests");
 
-                    b.Navigation("StudentCourseFees");
+                    b.Navigation("StudentCourses");
 
                     b.Navigation("StudentSchedules");
-                });
-
-            modelBuilder.Entity("HouseofTutorAPI.Models.StudentCourseFee", b =>
-                {
-                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("HouseofTutorAPI.Models.Tutor", b =>
@@ -831,10 +624,6 @@ namespace HouseofTutorAPI.Migrations
                     b.Navigation("Requests");
 
                     b.Navigation("Schedules");
-
-                    b.Navigation("StudentCourseFees");
-
-                    b.Navigation("TutorCourseRates");
 
                     b.Navigation("TutorCourses");
                 });
