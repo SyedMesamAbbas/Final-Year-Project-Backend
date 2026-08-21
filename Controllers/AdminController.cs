@@ -182,7 +182,7 @@ namespace HouseofTutorAPI.Controllers
         //}
 
         //To View and See detials of tutor
-        [HttpGet("tutor/{id}")]
+        [HttpGet("tutor/{id}")] //View Tutor Details 
         public async Task<IActionResult> GetTutor(int id)
         {
             var tutor = await db.Tutors

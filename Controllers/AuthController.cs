@@ -183,36 +183,84 @@ namespace HouseofTutorAPI.Controllers
         //    }
         //}
 
-
-
-        [HttpPost("register")]
+        [HttpPost("register")]//parent password is last 5 digit
         public async Task<IActionResult> Register([FromBody] RegisterDTO dto)
         {
             using var transaction = await db.Database.BeginTransactionAsync();
 
             try
             {
+                // -----------------------------------------
+                // 1. Validate Request
+                // -----------------------------------------
                 if (dto == null)
-                    return BadRequest(new { message = "Invalid data." });
+                {
+                    return BadRequest(new
+                    {
+                        message = "Invalid data."
+                    });
+                }
 
+                // -----------------------------------------
+                // 2. Normalize Email
+                // -----------------------------------------
                 dto.email = dto.email?.Trim().ToLower();
 
-                // Normalize Father CNIC
-                string fatherCnic = dto.FatherCNIC?.Replace("-", "").Trim();
+                // -----------------------------------------
+                // 3. Normalize Father CNIC
+                // -----------------------------------------
+                string fatherCnic = dto.FatherCNIC?
+                    .Replace("-", "")
+                    .Trim();
 
-                // Check email already exists
+                // -----------------------------------------
+                // 4. Validate Father CNIC
+                // -----------------------------------------
+                if (dto.role == "Student")
+                {
+                    if (string.IsNullOrWhiteSpace(fatherCnic))
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Father CNIC is required."
+                        });
+                    }
+
+                    if (fatherCnic.Length < 5)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Father CNIC must contain at least 5 digits."
+                        });
+                    }
+                }
+
+                // -----------------------------------------
+                // 5. Check Email Already Exists
+                // -----------------------------------------
                 if (await db.Users.AnyAsync(u => u.Email == dto.email))
                 {
-                    return BadRequest(new { message = "Email already exists." });
+                    return BadRequest(new
+                    {
+                        message = "Email already exists."
+                    });
                 }
 
-                // Only Student and Tutor are allowed to register
-                if (dto.role != "Student" && dto.role != "Tutor")
+                // -----------------------------------------
+                // 6. Only Student and Tutor Can Register
+                // -----------------------------------------
+                if (dto.role != "Student" &&
+                    dto.role != "Tutor")
                 {
-                    return BadRequest(new { message = "Invalid role." });
+                    return BadRequest(new
+                    {
+                        message = "Invalid role."
+                    });
                 }
 
-                // Create Student/Tutor User
+                // -----------------------------------------
+                // 7. Create Student/Tutor User
+                // -----------------------------------------
                 var user = new User
                 {
                     FullName = dto.fullName,
@@ -220,14 +268,23 @@ namespace HouseofTutorAPI.Controllers
                     Phone = dto.phone,
                     Cnic = dto.cnic,
                     Password = dto.password,
-                    Role = dto.role == "Student" ? "Student" : "Tutor"
+                    Role = dto.role == "Student"
+                        ? "Student"
+                        : "Tutor"
                 };
 
                 db.Users.Add(user);
+
                 await db.SaveChangesAsync();
 
+                // =========================================
+                // STUDENT
+                // =========================================
                 if (dto.role == "Student")
                 {
+                    // -----------------------------------------
+                    // Create Student
+                    // -----------------------------------------
                     db.Students.Add(new Student
                     {
                         UserId = user.UserId,
@@ -235,30 +292,51 @@ namespace HouseofTutorAPI.Controllers
                         Location = null
                     });
 
-                    // Create Parent account if it doesn't already exist
+                    // -----------------------------------------
+                    // Check Parent Account
+                    // -----------------------------------------
                     bool parentExists = await db.Users.AnyAsync(x =>
                         x.Role == "Parent" &&
                         x.Cnic == fatherCnic);
 
+                    // -----------------------------------------
+                    // Create Parent Account
+                    // -----------------------------------------
                     if (!parentExists)
                     {
-                        string parentPassword = fatherCnic.Length >= 5
-                            ? fatherCnic.Substring(0, 5)
-                            : fatherCnic;
+                        // Parent password = LAST 5 digits
+                        // of Father CNIC
+                        string parentPassword =
+                            fatherCnic.Substring(
+                                fatherCnic.Length - 5,
+                                5
+                            );
 
                         var parentUser = new User
                         {
                             FullName = "Parent",
+
+                            // Father CNIC is being used
+                            // as Parent login email
                             Email = fatherCnic,
+
                             Phone = null,
+
                             Cnic = fatherCnic,
+
+                            // LAST 5 digits of CNIC
                             Password = parentPassword,
+
                             Role = "Parent"
                         };
 
                         db.Users.Add(parentUser);
                     }
                 }
+
+                // =========================================
+                // TUTOR
+                // =========================================
                 else
                 {
                     db.Tutors.Add(new Tutor
@@ -272,9 +350,19 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
+                // -----------------------------------------
+                // 8. Save Everything
+                // -----------------------------------------
                 await db.SaveChangesAsync();
+
+                // -----------------------------------------
+                // 9. Commit Transaction
+                // -----------------------------------------
                 await transaction.CommitAsync();
 
+                // -----------------------------------------
+                // 10. Success Response
+                // -----------------------------------------
                 return Ok(new
                 {
                     message = "User registered successfully.",
@@ -283,6 +371,9 @@ namespace HouseofTutorAPI.Controllers
             }
             catch (Exception ex)
             {
+                // -----------------------------------------
+                // Rollback
+                // -----------------------------------------
                 await transaction.RollbackAsync();
 
                 return BadRequest(new
@@ -292,6 +383,115 @@ namespace HouseofTutorAPI.Controllers
                 });
             }
         }
+
+        //[HttpPost("register")] //parent password is first 5 digit
+        //public async Task<IActionResult> Register([FromBody] RegisterDTO dto)
+        //{
+        //    using var transaction = await db.Database.BeginTransactionAsync();
+
+        //    try
+        //    {
+        //        if (dto == null)
+        //            return BadRequest(new { message = "Invalid data." });
+
+        //        dto.email = dto.email?.Trim().ToLower();
+
+        //        // Normalize Father CNIC
+        //        string fatherCnic = dto.FatherCNIC?.Replace("-", "").Trim();
+
+        //        // Check email already exists
+        //        if (await db.Users.AnyAsync(u => u.Email == dto.email))
+        //        {
+        //            return BadRequest(new { message = "Email already exists." });
+        //        }
+
+        //        // Only Student and Tutor are allowed to register
+        //        if (dto.role != "Student" && dto.role != "Tutor")
+        //        {
+        //            return BadRequest(new { message = "Invalid role." });
+        //        }
+
+        //        // Create Student/Tutor User
+        //        var user = new User
+        //        {
+        //            FullName = dto.fullName,
+        //            Email = dto.email,
+        //            Phone = dto.phone,
+        //            Cnic = dto.cnic,
+        //            Password = dto.password,
+        //            Role = dto.role == "Student" ? "Student" : "Tutor"
+        //        };
+
+        //        db.Users.Add(user);
+        //        await db.SaveChangesAsync();
+
+        //        if (dto.role == "Student")
+        //        {
+        //            db.Students.Add(new Student
+        //            {
+        //                UserId = user.UserId,
+        //                FatherCnic = fatherCnic,
+        //                Location = null
+        //            });
+
+        //            // Create Parent account if it doesn't already exist
+        //            bool parentExists = await db.Users.AnyAsync(x =>
+        //                x.Role == "Parent" &&
+        //                x.Cnic == fatherCnic);
+
+        //            if (!parentExists)
+        //            {
+        //                string parentPassword = fatherCnic.Length >= 5
+        //                    ? fatherCnic.Substring(0, 5)
+        //                    : fatherCnic;
+
+        //                var parentUser = new User
+        //                {
+        //                    FullName = "Parent",
+        //                    Email = fatherCnic,
+        //                    Phone = null,
+        //                    Cnic = fatherCnic,
+        //                    Password = parentPassword,
+        //                    Role = "Parent"
+        //                };
+
+        //                db.Users.Add(parentUser);
+        //            }
+        //        }
+        //        else
+        //        {
+        //            db.Tutors.Add(new Tutor
+        //            {
+        //                UserId = user.UserId,
+        //                Qualification = dto.qualification,
+        //                Experience = dto.experience ?? 0,
+        //                Radius = dto.radius ?? 0,
+        //                Location = null,
+        //                Status = "Pending"
+        //            });
+        //        }
+
+        //        await db.SaveChangesAsync();
+        //        await transaction.CommitAsync();
+
+        //        return Ok(new
+        //        {
+        //            message = "User registered successfully.",
+        //            userId = user.UserId
+        //        });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        await transaction.RollbackAsync();
+
+        //        return BadRequest(new
+        //        {
+        //            message = ex.Message,
+        //            inner = ex.InnerException?.Message
+        //        });
+        //    }
+        //}
+
 
         //LOGIN
         //[HttpPost("login")]

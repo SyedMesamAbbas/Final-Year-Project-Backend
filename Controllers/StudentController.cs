@@ -880,6 +880,438 @@ namespace HouseofTutorAPI.Controllers
         }
 
 
+        //Request to Tutor for normal class
+        //[HttpPost("create-request")]
+        //public async Task<IActionResult> CreateRequest([FromBody] CreateRequestDto dto)
+        //{
+        //    try
+        //    {
+        //        Console.WriteLine($"DAY: {dto.day}, TIME: {dto.time}");
+
+        //        if (string.IsNullOrEmpty(dto.day) ||
+        //            string.IsNullOrEmpty(dto.time))
+        //        {
+        //            return BadRequest(new { message = "Day or time missing" });
+        //        }
+
+        //        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+
+        //        var student = await db.Students
+        //            .FirstOrDefaultAsync(s => s.UserId == userId);
+
+        //        if (student == null)
+        //        {
+        //            return NotFound(new { message = "Student not found" });
+        //        }
+        //        string fullTime = $"{dto.day}, {dto.time}";
+        //        var request = new Request
+        //        {
+        //            StudentId = student.StudentId,
+        //            TutorId = dto.tutor_id,
+        //            CourseId = dto.course_id,
+        //            Time = fullTime,
+        //            RequestDate = DateTime.Now,
+        //            Status = "Pending",
+        //            ClassDate = dto.class_date,
+        //            Day = dto.day,
+        //            RequestType = "Normal",
+        //            ParentRequestId = null
+        //        };
+
+        //        db.Requests.Add(request);
+
+        //        await db.SaveChangesAsync();
+
+        //        return Ok(new
+        //        {
+        //            message = "Class request created successfully",
+        //            request_id = request.RequestId,
+        //            request_type = request.RequestType
+        //        });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, new
+        //        {
+        //            message = ex.Message
+        //        });
+        //    }
+        //}
+        [Authorize]
+        [HttpPost("create-request")] // Request to Tutor for normal class and can send request for re and pre-scheduled tutor
+        public async Task<IActionResult> CreateRequest([FromBody] CreateRequestDto dto)
+        {
+            try
+            {
+                Console.WriteLine($"DAY: {dto.day}, TIME: {dto.time}");
+
+                // -----------------------------------------
+                // 1. Validate Day and Time
+                // -----------------------------------------
+                if (string.IsNullOrWhiteSpace(dto.day) ||
+                    string.IsNullOrWhiteSpace(dto.time))
+                {
+                    return BadRequest(new
+                    {
+                        message = "Day or time missing"
+                    });
+                }
+
+                // -----------------------------------------
+                // 2. Validate Learning Mode
+                // -----------------------------------------
+                if (string.IsNullOrWhiteSpace(dto.learning_mode))
+                {
+                    return BadRequest(new
+                    {
+                        message = "Learning mode is required."
+                    });
+                }
+
+                if (dto.learning_mode == "SpecificTime")
+                {
+                    if (!dto.learning_duration.HasValue ||
+                        dto.learning_duration <= 0)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Learning duration is required for Specific Time."
+                        });
+                    }
+
+                    if (string.IsNullOrWhiteSpace(dto.learning_duration_unit))
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Learning duration unit is required."
+                        });
+                    }
+                }
+
+                // -----------------------------------------
+                // 3. Get Logged-in Student
+                // -----------------------------------------
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrWhiteSpace(userIdClaim))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "User not authenticated."
+                    });
+                }
+
+                var userId = int.Parse(userIdClaim);
+
+                var student = await db.Students
+                    .FirstOrDefaultAsync(s => s.UserId == userId);
+
+                if (student == null)
+                {
+                    return NotFound(new
+                    {
+                        message = "Student not found"
+                    });
+                }
+
+                // -----------------------------------------
+                // 4. Check Tutor
+                // -----------------------------------------
+                var tutor = await db.Tutors
+                    .FirstOrDefaultAsync(t => t.TutorId == dto.tutor_id);
+
+                if (tutor == null)
+                {
+                    return NotFound(new
+                    {
+                        message = "Tutor not found."
+                    });
+                }
+
+                // -----------------------------------------
+                // 5. Check Tutor's Existing
+                //    Reschedule / Preschedule Requests
+                // -----------------------------------------
+                var occupiedRequest = await db.Requests
+                    .Where(r =>
+                        r.TutorId == dto.tutor_id &&
+                        r.Day == dto.day &&
+                        r.Time == $"{dto.day}, {dto.time}" &&
+                        (r.RequestType == "Reschedule" ||
+                         r.RequestType == "Preschedule") &&
+                        (r.Status == "Pending" ||
+                         r.Status == "Approved" ||
+                         r.Status == "Accepted"))
+                    .OrderBy(r => r.ClassDate)
+                    .FirstOrDefaultAsync();
+
+                // -----------------------------------------
+                // 6. Find Next Available Day
+                // -----------------------------------------
+                string? nextAvailableDay = null;
+
+                if (occupiedRequest != null)
+                {
+                    var days = new[]
+                    {
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            };
+
+                    int selectedDayIndex = Array.FindIndex(
+                        days,
+                        d => d.Equals(dto.day, StringComparison.OrdinalIgnoreCase)
+                    );
+
+                    if (selectedDayIndex >= 0)
+                    {
+                        // Check next 7 days
+                        for (int i = 1; i <= 7; i++)
+                        {
+                            string checkingDay =
+                                days[(selectedDayIndex + i) % 7];
+
+                            // Check whether tutor has a regular schedule
+                            var hasSchedule = await db.Schedules
+                                .AnyAsync(s =>
+                                    s.TutorId == dto.tutor_id &&
+                                    s.Day == checkingDay &&
+                                    s.Time == dto.time);
+
+                            // Check whether tutor is already occupied
+                            var hasConflict = await db.Requests
+                                .AnyAsync(r =>
+                                    r.TutorId == dto.tutor_id &&
+                                    r.Day == checkingDay &&
+                                    r.Time == $"{checkingDay}, {dto.time}" &&
+                                    (r.RequestType == "Reschedule" ||
+                                     r.RequestType == "Preschedule") &&
+                                    (r.Status == "Pending" ||
+                                     r.Status == "Approved" ||
+                                     r.Status == "Accepted"));
+
+                            if (hasSchedule && !hasConflict)
+                            {
+                                nextAvailableDay = checkingDay;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // -----------------------------------------
+                // 7. Create Normal Request
+                // -----------------------------------------
+                string fullTime = $"{dto.day}, {dto.time}";
+
+                var request = new Request
+                {
+                    StudentId = student.StudentId,
+                    TutorId = dto.tutor_id,
+                    CourseId = dto.course_id,
+
+                    Time = fullTime,
+
+                    RequestDate = DateTime.Now,
+
+                    Status = "Pending",
+
+                    ClassDate = DateOnly.FromDateTime(DateTime.Now),
+
+                    Day = dto.day,
+
+                    RequestType = "Normal",
+
+                    ParentRequestId = null,
+
+                    LearningMode = dto.learning_mode,
+
+                    LearningDuration = dto.learning_duration,
+
+                    LearningDurationUnit = dto.learning_duration_unit
+                };
+
+                db.Requests.Add(request);
+
+                await db.SaveChangesAsync();
+
+                // -----------------------------------------
+                // 8. Return Response
+                // -----------------------------------------
+                if (occupiedRequest != null)
+                {
+                    string reason = occupiedRequest.RequestType == "Reschedule"
+                        ? "Reschedule class"
+                        : "Preschedule class";
+
+                    string message;
+
+                    if (!string.IsNullOrWhiteSpace(nextAvailableDay))
+                    {
+                        message =
+                            $"This tutor is unavailable on {dto.day} at {dto.time} " +
+                            $"due to a {reason}. " +
+                            $"Tutor is available next {nextAvailableDay}.";
+                    }
+                    else
+                    {
+                        message =
+                            $"This tutor is unavailable on {dto.day} at {dto.time} " +
+                            $"due to a {reason}.";
+                    }
+
+                    return Ok(new
+                    {
+                        message = "Class request created successfully.",
+                        note = message,
+
+                        request_id = request.RequestId,
+                        request_type = request.RequestType,
+
+                        tutor_unavailable = true,
+                        unavailable_reason = reason,
+
+                        requested_day = dto.day,
+                        requested_time = dto.time,
+
+                        next_available_day = nextAvailableDay,
+
+                        learning_mode = request.LearningMode,
+                        learning_duration = request.LearningDuration,
+                        learning_duration_unit = request.LearningDurationUnit
+                    });
+                }
+
+                // No conflict
+                return Ok(new
+                {
+                    message = "Class request created successfully",
+
+                    note = (string?)null,
+
+                    request_id = request.RequestId,
+                    request_type = request.RequestType,
+
+                    tutor_unavailable = false,
+                    unavailable_reason = (string?)null,
+
+                    requested_day = dto.day,
+                    requested_time = dto.time,
+
+                    next_available_day = (string?)null,
+
+                    learning_mode = request.LearningMode,
+                    learning_duration = request.LearningDuration,
+                    learning_duration_unit = request.LearningDurationUnit
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = ex.Message
+                });
+            }
+        }
+        //[Authorize]
+        //[HttpPost("create-request")]//Request to Tutor for normal class and not send request for re and pre-scheduled tutor
+        //public async Task<IActionResult> CreateRequest([FromBody] CreateRequestDto dto)
+        //{
+        //    try
+        //    {
+        //        Console.WriteLine($"DAY: {dto.day}, TIME: {dto.time}");
+
+        //        if (string.IsNullOrWhiteSpace(dto.day) ||
+        //            string.IsNullOrWhiteSpace(dto.time))
+        //        {
+        //            return BadRequest(new { message = "Day or time missing" });
+        //        }
+
+        //        // Validate Learning Mode
+        //        if (string.IsNullOrWhiteSpace(dto.learning_mode))
+        //        {
+        //            return BadRequest(new { message = "Learning mode is required." });
+        //        }
+
+        //        if (dto.learning_mode == "SpecificTime")
+        //        {
+        //            if (!dto.learning_duration.HasValue || dto.learning_duration <= 0)
+        //            {
+        //                return BadRequest(new
+        //                {
+        //                    message = "Learning duration is required for Specific Time."
+        //                });
+        //            }
+
+        //            if (string.IsNullOrWhiteSpace(dto.learning_duration_unit))
+        //            {
+        //                return BadRequest(new
+        //                {
+        //                    message = "Learning duration unit is required."
+        //                });
+        //            }
+        //        }
+
+        //        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+
+        //        var student = await db.Students
+        //            .FirstOrDefaultAsync(s => s.UserId == userId);
+
+        //        if (student == null)
+        //        {
+        //            return NotFound(new { message = "Student not found" });
+        //        }
+
+        //        string fullTime = $"{dto.day}, {dto.time}";
+
+        //        var request = new Request
+        //        {
+        //            StudentId = student.StudentId,
+        //            TutorId = dto.tutor_id,
+        //            CourseId = dto.course_id,
+        //            Time = fullTime,
+        //            RequestDate = DateTime.Now,
+        //            Status = "Pending",
+        //            //ClassDate = dto.class_date,
+        //            ClassDate = DateOnly.FromDateTime(DateTime.Now),
+        //            Day = dto.day,
+        //            RequestType = "Normal",
+        //            ParentRequestId = null,
+
+        //            // New Fields
+        //            LearningMode = dto.learning_mode,
+        //            LearningDuration = dto.learning_duration,
+        //            LearningDurationUnit = dto.learning_duration_unit
+        //        };
+
+        //        db.Requests.Add(request);
+
+        //        await db.SaveChangesAsync();
+
+        //        return Ok(new
+        //        {
+        //            message = "Class request created successfully",
+        //            request_id = request.RequestId,
+        //            request_type = request.RequestType,
+        //            learning_mode = request.LearningMode,
+        //            learning_duration = request.LearningDuration,
+        //            learning_duration_unit = request.LearningDurationUnit
+        //        });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, new
+        //        {
+        //            message = ex.Message
+        //        });
+        //    }
+        //}
+
         [Authorize]
         [HttpGet("all-classes")]
         public async Task<IActionResult> GetAllClasses()
@@ -1211,157 +1643,7 @@ namespace HouseofTutorAPI.Controllers
             });
         }
 
-        //Request to Tutor for normal class
-        //[HttpPost("create-request")]
-        //public async Task<IActionResult> CreateRequest([FromBody] CreateRequestDto dto)
-        //{
-        //    try
-        //    {
-        //        Console.WriteLine($"DAY: {dto.day}, TIME: {dto.time}");
-
-        //        if (string.IsNullOrEmpty(dto.day) ||
-        //            string.IsNullOrEmpty(dto.time))
-        //        {
-        //            return BadRequest(new { message = "Day or time missing" });
-        //        }
-
-        //        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-
-        //        var student = await db.Students
-        //            .FirstOrDefaultAsync(s => s.UserId == userId);
-
-        //        if (student == null)
-        //        {
-        //            return NotFound(new { message = "Student not found" });
-        //        }
-        //        string fullTime = $"{dto.day}, {dto.time}";
-        //        var request = new Request
-        //        {
-        //            StudentId = student.StudentId,
-        //            TutorId = dto.tutor_id,
-        //            CourseId = dto.course_id,
-        //            Time = fullTime,
-        //            RequestDate = DateTime.Now,
-        //            Status = "Pending",
-        //            ClassDate = dto.class_date,
-        //            Day = dto.day,
-        //            RequestType = "Normal",
-        //            ParentRequestId = null
-        //        };
-
-        //        db.Requests.Add(request);
-
-        //        await db.SaveChangesAsync();
-
-        //        return Ok(new
-        //        {
-        //            message = "Class request created successfully",
-        //            request_id = request.RequestId,
-        //            request_type = request.RequestType
-        //        });
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, new
-        //        {
-        //            message = ex.Message
-        //        });
-        //    }
-        //}
-
-        [Authorize]
-        [HttpPost("create-request")]//Request to Tutor for normal class
-        public async Task<IActionResult> CreateRequest([FromBody] CreateRequestDto dto)
-        {
-            try
-            {
-                Console.WriteLine($"DAY: {dto.day}, TIME: {dto.time}");
-
-                if (string.IsNullOrWhiteSpace(dto.day) ||
-                    string.IsNullOrWhiteSpace(dto.time))
-                {
-                    return BadRequest(new { message = "Day or time missing" });
-                }
-
-                // Validate Learning Mode
-                if (string.IsNullOrWhiteSpace(dto.learning_mode))
-                {
-                    return BadRequest(new { message = "Learning mode is required." });
-                }
-
-                if (dto.learning_mode == "SpecificTime")
-                {
-                    if (!dto.learning_duration.HasValue || dto.learning_duration <= 0)
-                    {
-                        return BadRequest(new
-                        {
-                            message = "Learning duration is required for Specific Time."
-                        });
-                    }
-
-                    if (string.IsNullOrWhiteSpace(dto.learning_duration_unit))
-                    {
-                        return BadRequest(new
-                        {
-                            message = "Learning duration unit is required."
-                        });
-                    }
-                }
-
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-
-                var student = await db.Students
-                    .FirstOrDefaultAsync(s => s.UserId == userId);
-
-                if (student == null)
-                {
-                    return NotFound(new { message = "Student not found" });
-                }
-
-                string fullTime = $"{dto.day}, {dto.time}";
-
-                var request = new Request
-                {
-                    StudentId = student.StudentId,
-                    TutorId = dto.tutor_id,
-                    CourseId = dto.course_id,
-                    Time = fullTime,
-                    RequestDate = DateTime.Now,
-                    Status = "Pending",
-                    //ClassDate = dto.class_date,
-                    ClassDate = DateOnly.FromDateTime(DateTime.Now),
-                    Day = dto.day,
-                    RequestType = "Normal",
-                    ParentRequestId = null,
-
-                    // New Fields
-                    LearningMode = dto.learning_mode,
-                    LearningDuration = dto.learning_duration,
-                    LearningDurationUnit = dto.learning_duration_unit
-                };
-
-                db.Requests.Add(request);
-
-                await db.SaveChangesAsync();
-
-                return Ok(new
-                {
-                    message = "Class request created successfully",
-                    request_id = request.RequestId,
-                    request_type = request.RequestType,
-                    learning_mode = request.LearningMode,
-                    learning_duration = request.LearningDuration,
-                    learning_duration_unit = request.LearningDurationUnit
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    message = ex.Message
-                });
-            }
-        }
+        
 
         [Authorize]
         [HttpGet("my-profile")]
