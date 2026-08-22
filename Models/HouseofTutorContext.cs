@@ -47,17 +47,40 @@ public partial class HouseofTutorContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        //modelBuilder.Entity<Course>(entity =>
+        //{
+        //    entity.HasKey(e => e.CourseId).HasName("PK__Course__8F1EF7AEB9F1622F");
+
+        //    entity.ToTable("Course");
+
+        //    entity.Property(e => e.CourseId).HasColumnName("course_id");
+        //    entity.Property(e => e.CourseTitle)
+        //        .HasMaxLength(100)
+        //        .IsUnicode(false)
+        //        .HasColumnName("course_title");
+        //});
         modelBuilder.Entity<Course>(entity =>
         {
-            entity.HasKey(e => e.CourseId).HasName("PK__Course__8F1EF7AEB9F1622F");
+            entity.HasKey(e => e.CourseId)
+                .HasName("PK__Course__8F1EF7AEB9F1622F");
 
             entity.ToTable("Course");
 
-            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CourseId)
+                .HasColumnName("course_id");
+
             entity.Property(e => e.CourseTitle)
                 .HasMaxLength(100)
                 .IsUnicode(false)
                 .HasColumnName("course_title");
+
+            entity.Property(e => e.AdminSetMinHourlyRate)
+                .HasColumnType("decimal(10,2)")
+                .HasColumnName("admin_set_min_hourly_rate");
+
+            entity.Property(e => e.AdminSetMaxHourlyRate)
+                .HasColumnType("decimal(10,2)")
+                .HasColumnName("admin_set_max_hourly_rate");
         });
 
         modelBuilder.Entity<Feedback>(entity =>

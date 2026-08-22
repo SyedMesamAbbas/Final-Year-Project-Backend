@@ -480,76 +480,312 @@ namespace HouseofTutorAPI.Controllers
         //    });
         //}
 
-
         [Authorize]
-        [HttpPost("add-courses")]
+        [HttpPost("add-courses")] // Add Course and Hourly rate and Hourly rate must between Min and Max Rate
         public async Task<IActionResult> AddTutorCourses([FromBody] AddTutorCoursesDto dto)
         {
-            if (dto == null || dto.Courses == null || dto.Courses.Count == 0)
-                return BadRequest(new { message = "No courses selected." });
-
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-
-            if (userIdClaim == null)
-                return Unauthorized(new { message = "Invalid token." });
-
-            int userId = int.Parse(userIdClaim.Value);
-
-            var tutor = await db.Tutors
-                .FirstOrDefaultAsync(t => t.UserId == userId);
-
-            if (tutor == null)
-                return NotFound(new { message = "Tutor not found." });
-
-            int added = 0;
-
-            foreach (var item in dto.Courses)
+            try
             {
-                if (string.IsNullOrWhiteSpace(item.Grade))
-                    continue;
-
-                string grade = item.Grade.Trim().ToUpper();
-
-                if (!new[] { "A", "B", "C", "D", "F" }.Contains(grade))
-                    continue;
-
-                if (item.HourlyRate <= 0)
-                    continue;
-
-                bool exists = await db.TutorCourses.AnyAsync(tc =>
-                    tc.TutorId == tutor.TutorId &&
-                    tc.CourseId == item.CourseId);
-
-                if (exists)
-                    continue;
-
-                // Save Tutor Course
-                db.TutorCourses.Add(new TutorCourse
+                // =====================================================
+                // Validate request
+                // =====================================================
+                if (dto == null ||
+                    dto.Courses == null ||
+                    dto.Courses.Count == 0)
                 {
-                    TutorId = tutor.TutorId,
-                    CourseId = item.CourseId,
-                    Grade = grade
-                });
+                    return BadRequest(new
+                    {
+                        message = "No courses selected."
+                    });
+                }
 
-                // Save Hourly Rate
-                db.TutorCourseRates.Add(new TutorCourseRate
+                // =====================================================
+                // Get User ID from Token
+                // =====================================================
+                var userIdClaim =
+                    User.FindFirst(ClaimTypes.NameIdentifier);
+
+                if (userIdClaim == null)
                 {
-                    TutorId = tutor.TutorId,
-                    CourseId = item.CourseId,
-                    HourlyRate = item.HourlyRate
-                });
+                    return Unauthorized(new
+                    {
+                        message = "Invalid token."
+                    });
+                }
 
-                added++;
+                if (!int.TryParse(
+                        userIdClaim.Value,
+                        out int userId))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Invalid user ID."
+                    });
+                }
+
+                // =====================================================
+                // Find Tutor
+                // =====================================================
+                var tutor = await db.Tutors
+                    .FirstOrDefaultAsync(t =>
+                        t.UserId == userId);
+
+                if (tutor == null)
+                {
+                    return NotFound(new
+                    {
+                        message = "Tutor not found."
+                    });
+                }
+
+                int added = 0;
+
+                // =====================================================
+                // Grade List
+                // =====================================================
+                var validGrades = new[]
+                {
+                    "A",
+                    "B",
+                    "C",
+                    "D",
+                    "F"
+                };
+
+                // =====================================================
+                // Process Courses
+                // =====================================================
+                foreach (var item in dto.Courses)
+                {
+                    // -------------------------------------------------
+                    // Validate Course ID
+                    // -------------------------------------------------
+                    if (item.CourseId <= 0)
+                    {
+                        continue;
+                    }
+
+                    // -------------------------------------------------
+                    // Validate Grade
+                    // -------------------------------------------------
+                    if (string.IsNullOrWhiteSpace(item.Grade))
+                    {
+                        continue;
+                    }
+
+                    string grade =
+                        item.Grade.Trim().ToUpper();
+
+                    if (!validGrades.Contains(grade))
+                    {
+                        continue;
+                    }
+
+                    // -------------------------------------------------
+                    // Validate Hourly Rate
+                    // -------------------------------------------------
+                    if (item.HourlyRate <= 0)
+                    {
+                        continue;
+                    }
+
+                    // =================================================
+                    // Get Course
+                    // =================================================
+                    var course = await db.Courses
+                        .FirstOrDefaultAsync(c =>
+                            c.CourseId == item.CourseId);
+
+                    if (course == null)
+                    {
+                        return BadRequest(new
+                        {
+                            message =
+                                $"Course with ID {item.CourseId} not found."
+                        });
+                    }
+
+                    // =================================================
+                    // Get Admin Min / Max Rate
+                    // =================================================
+                    if (!course.AdminSetMinHourlyRate.HasValue ||
+                        !course.AdminSetMaxHourlyRate.HasValue)
+                    {
+                        return BadRequest(new
+                        {
+                            message =
+                                $"Hourly rate range is not configured for {course.CourseTitle}."
+                        });
+                    }
+
+                    decimal minRate =
+                        course.AdminSetMinHourlyRate.Value;
+
+                    decimal maxRate =
+                        course.AdminSetMaxHourlyRate.Value;
+
+                    // =================================================
+                    // Validate Tutor Hourly Rate
+                    // =================================================
+                    if (item.HourlyRate < minRate ||
+                        item.HourlyRate > maxRate)
+                    {
+                        return BadRequest(new
+                        {
+                            message =
+                                $"You can set hourly rate between Rs. {minRate:0.##} and Rs. {maxRate:0.##} for {course.CourseTitle}.",
+                            courseId = course.CourseId,
+                            courseTitle = course.CourseTitle,
+                            minRate = minRate,
+                            maxRate = maxRate
+                        });
+                    }
+
+                    // =================================================
+                    // Check if Tutor Already Added This Course
+                    // =================================================
+                    bool exists = await db.TutorCourses
+                        .AnyAsync(tc =>
+                            tc.TutorId == tutor.TutorId &&
+                            tc.CourseId == item.CourseId);
+
+                    if (exists)
+                    {
+                        continue;
+                    }
+
+                    // =================================================
+                    // Save Tutor Course
+                    // =================================================
+                    db.TutorCourses.Add(new TutorCourse
+                    {
+                        TutorId = tutor.TutorId,
+                        CourseId = item.CourseId,
+                        Grade = grade
+                    });
+
+                    // =================================================
+                    // Save Tutor Hourly Rate
+                    // =================================================
+                    db.TutorCourseRates.Add(
+                        new TutorCourseRate
+                        {
+                            TutorId = tutor.TutorId,
+                            CourseId = item.CourseId,
+                            HourlyRate = item.HourlyRate
+                        });
+
+                    added++;
+                }
+
+                // =====================================================
+                // No Courses Added
+                // =====================================================
+                if (added == 0)
+                {
+                    return BadRequest(new
+                    {
+                        message =
+                            "No courses were added. Please check the selected courses and hourly rates."
+                    });
+                }
+
+                // =====================================================
+                // Save Changes
+                // =====================================================
+                await db.SaveChangesAsync();
+
+                // =====================================================
+                // Success
+                // =====================================================
+                return Ok(new
+                {
+                    message =
+                        "Courses added successfully.",
+                    added
+                });
             }
-
-            await db.SaveChangesAsync();
-
-            return Ok(new
+            catch (Exception ex)
             {
-                message = "Courses added successfully.",
-                added
-            });
+                return StatusCode(500, new
+                {
+                    message =
+                        "Error adding courses.",
+                    error =
+                        ex.InnerException?.Message ??
+                        ex.Message
+                });
+            }
         }
+        //[Authorize]
+        //[HttpPost("add-courses")]//Simple add Course Rate 
+        //public async Task<IActionResult> AddTutorCourses([FromBody] AddTutorCoursesDto dto)
+        //{
+        //    if (dto == null || dto.Courses == null || dto.Courses.Count == 0)
+        //        return BadRequest(new { message = "No courses selected." });
+
+        //    var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+
+        //    if (userIdClaim == null)
+        //        return Unauthorized(new { message = "Invalid token." });
+
+        //    int userId = int.Parse(userIdClaim.Value);
+
+        //    var tutor = await db.Tutors
+        //        .FirstOrDefaultAsync(t => t.UserId == userId);
+
+        //    if (tutor == null)
+        //        return NotFound(new { message = "Tutor not found." });
+
+        //    int added = 0;
+
+        //    foreach (var item in dto.Courses)
+        //    {
+        //        if (string.IsNullOrWhiteSpace(item.Grade))
+        //            continue;
+
+        //        string grade = item.Grade.Trim().ToUpper();
+
+        //        if (!new[] { "A", "B", "C", "D", "F" }.Contains(grade))
+        //            continue;
+
+        //        if (item.HourlyRate <= 0)
+        //            continue;
+
+        //        bool exists = await db.TutorCourses.AnyAsync(tc =>
+        //            tc.TutorId == tutor.TutorId &&
+        //            tc.CourseId == item.CourseId);
+
+        //        if (exists)
+        //            continue;
+
+        //        // Save Tutor Course
+        //        db.TutorCourses.Add(new TutorCourse
+        //        {
+        //            TutorId = tutor.TutorId,
+        //            CourseId = item.CourseId,
+        //            Grade = grade
+        //        });
+
+        //        // Save Hourly Rate
+        //        db.TutorCourseRates.Add(new TutorCourseRate
+        //        {
+        //            TutorId = tutor.TutorId,
+        //            CourseId = item.CourseId,
+        //            HourlyRate = item.HourlyRate
+        //        });
+
+        //        added++;
+        //    }
+
+        //    await db.SaveChangesAsync();
+
+        //    return Ok(new
+        //    {
+        //        message = "Courses added successfully.",
+        //        added
+        //    });
+        //}
         //Get Tutor_courses that they teach
         //[Authorize]
         //[HttpGet("my-courses")]

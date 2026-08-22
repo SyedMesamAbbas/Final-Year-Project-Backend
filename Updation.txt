@@ -24,6 +24,16 @@ Add-Migration AddStudentStatus
 Update-Database
 
 
+Add-Migration AddAdminHourlyRatesToCourse
+Update-Database
+
+
+
+
+
+
+
+
 To Add the following 3 table's
 Tutor_Course_Rate
 Student_Course_Fee

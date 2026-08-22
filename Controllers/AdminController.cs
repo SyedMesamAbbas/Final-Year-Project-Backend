@@ -286,6 +286,54 @@ namespace HouseofTutorAPI.Controllers
         }
 
         //get only approved Tutor's
+        //[HttpGet("approved-tutors")]
+        //public async Task<IActionResult> GetApprovedTutors()
+        //{
+        //    try
+        //    {
+        //        var tutors = await db.Tutors
+        //            .Where(t => t.Status == "Approved")
+        //            .Include(t => t.User)
+        //            .Include(t => t.TutorCourses)
+        //                .ThenInclude(tc => tc.Course)
+        //            .Select(t => new
+        //            {
+        //                id = t.TutorId,
+
+        //                fullName = t.User.FullName,
+
+        //                // profileImage = t.User.ProfileImage,
+
+        //                subjects = t.TutorCourses
+        //                    .Select(tc => tc.Course.CourseTitle)
+        //                    .ToList(),
+
+        //                rating = db.Feedbacks
+        //                    .Where(f => f.TutorId == t.TutorId)
+        //                    .Select(f => (double?)f.Rating)
+        //                    .Average() ?? 0,
+
+        //                totalReviews = db.Feedbacks
+        //                    .Count(f => f.TutorId == t.TutorId),
+
+        //                status = t.Status
+        //            })
+        //            .ToListAsync();
+
+        //        return Ok(tutors);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, new
+        //        {
+        //            message = "Error loading approved tutors",
+        //            error = ex.InnerException?.Message ?? ex.Message
+        //        });
+        //    }
+        //}
+
+        //Get Block Tutor
+
         [HttpGet("approved-tutors")]
         public async Task<IActionResult> GetApprovedTutors()
         {
@@ -293,29 +341,10 @@ namespace HouseofTutorAPI.Controllers
             {
                 var tutors = await db.Tutors
                     .Where(t => t.Status == "Approved")
-                    .Include(t => t.User)
-                    .Include(t => t.TutorCourses)
-                        .ThenInclude(tc => tc.Course)
                     .Select(t => new
                     {
                         id = t.TutorId,
-
                         fullName = t.User.FullName,
-
-                        // profileImage = t.User.ProfileImage,
-
-                        subjects = t.TutorCourses
-                            .Select(tc => tc.Course.CourseTitle)
-                            .ToList(),
-
-                        rating = db.Feedbacks
-                            .Where(f => f.TutorId == t.TutorId)
-                            .Select(f => (double?)f.Rating)
-                            .Average() ?? 0,
-
-                        totalReviews = db.Feedbacks
-                            .Count(f => f.TutorId == t.TutorId),
-
                         status = t.Status
                     })
                     .ToListAsync();
@@ -332,7 +361,6 @@ namespace HouseofTutorAPI.Controllers
             }
         }
 
-        //Get Block Tutor
         [HttpGet("blocked-users")]
         public async Task<IActionResult> GetBlockedUsers()
         {
@@ -820,7 +848,9 @@ namespace HouseofTutorAPI.Controllers
                     .Select(c => new
                     {
                         id = c.CourseId,
-                        courseTitle = c.CourseTitle
+                        courseTitle = c.CourseTitle,
+                        AdminSetMinHourlyRate=c.AdminSetMinHourlyRate,
+                        AdminSetMaxHourlyRate=c.AdminSetMaxHourlyRate
                     })
                     .ToListAsync();
 
@@ -873,8 +903,8 @@ namespace HouseofTutorAPI.Controllers
         //        });
         //    }
         //}
-        
-        [HttpPost("add-subject")]
+
+        [HttpPost("add-subject")]//Add Course in Course table also min max rate in course
         public async Task<IActionResult> AddSubject([FromBody] AddSubjectDTO dto)
         {
             try
@@ -915,6 +945,7 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
+                // Validate Min <= Max
                 if (dto.MinRate.Value > dto.MaxRate.Value)
                 {
                     return BadRequest(new
@@ -923,10 +954,13 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
+                // Clean course title
+                string courseTitle = dto.CourseTitle.Trim();
+
                 // Check if course already exists
                 var existingCourse = await db.Courses
                     .FirstOrDefaultAsync(c =>
-                        c.CourseTitle.ToLower() == dto.CourseTitle.Trim().ToLower());
+                        c.CourseTitle.ToLower() == courseTitle.ToLower());
 
                 if (existingCourse != null)
                 {
@@ -937,37 +971,29 @@ namespace HouseofTutorAPI.Controllers
                 }
 
                 // Create Course
+                // Min and Max rates are now stored directly
+                // in the Course table
                 var course = new Course
                 {
-                    CourseTitle = dto.CourseTitle.Trim()
-                };
-
-                db.Courses.Add(course);
-
-                // Save course first so CourseId is generated
-                await db.SaveChangesAsync();
-
-                // Create Tutor Course Rate record
-                var tutorCourseRate = new TutorCourseRate
-                {
-                    CourseId = course.CourseId,
-
+                    CourseTitle = courseTitle,
                     AdminSetMinHourlyRate = dto.MinRate.Value,
                     AdminSetMaxHourlyRate = dto.MaxRate.Value
                 };
 
-                db.TutorCourseRates.Add(tutorCourseRate);
+                // Add Course
+                db.Courses.Add(course);
 
-                // Save Tutor_Course_Rate
+                // Save everything
                 await db.SaveChangesAsync();
 
+                // Return response
                 return Ok(new
                 {
                     message = "Subject added successfully",
                     courseId = course.CourseId,
                     courseTitle = course.CourseTitle,
-                    minRate = tutorCourseRate.AdminSetMinHourlyRate,
-                    maxRate = tutorCourseRate.AdminSetMaxHourlyRate
+                    minRate = course.AdminSetMinHourlyRate,
+                    maxRate = course.AdminSetMaxHourlyRate
                 });
             }
             catch (Exception ex)
@@ -979,6 +1005,111 @@ namespace HouseofTutorAPI.Controllers
                 });
             }
         }
+        //[HttpPost("add-subject")]//Add Course in Course table and min max rate in tutor course rate
+        //public async Task<IActionResult> AddSubject([FromBody] AddSubjectDTO dto)
+        //{
+        //    try
+        //    {
+        //        // Validate request
+        //        if (dto == null || string.IsNullOrWhiteSpace(dto.CourseTitle))
+        //        {
+        //            return BadRequest(new
+        //            {
+        //                message = "Course title is required"
+        //            });
+        //        }
+
+        //        // Validate Min Rate
+        //        if (!dto.MinRate.HasValue)
+        //        {
+        //            return BadRequest(new
+        //            {
+        //                message = "Minimum rate is required"
+        //            });
+        //        }
+
+        //        // Validate Max Rate
+        //        if (!dto.MaxRate.HasValue)
+        //        {
+        //            return BadRequest(new
+        //            {
+        //                message = "Maximum rate is required"
+        //            });
+        //        }
+
+        //        // Validate rates
+        //        if (dto.MinRate.Value < 0 || dto.MaxRate.Value < 0)
+        //        {
+        //            return BadRequest(new
+        //            {
+        //                message = "Rates cannot be negative"
+        //            });
+        //        }
+
+        //        if (dto.MinRate.Value > dto.MaxRate.Value)
+        //        {
+        //            return BadRequest(new
+        //            {
+        //                message = "Minimum rate cannot be greater than maximum rate"
+        //            });
+        //        }
+
+        //        // Check if course already exists
+        //        var existingCourse = await db.Courses
+        //            .FirstOrDefaultAsync(c =>
+        //                c.CourseTitle.ToLower() == dto.CourseTitle.Trim().ToLower());
+
+        //        if (existingCourse != null)
+        //        {
+        //            return BadRequest(new
+        //            {
+        //                message = "This course already exists"
+        //            });
+        //        }
+
+        //        // Create Course
+        //        var course = new Course
+        //        {
+        //            CourseTitle = dto.CourseTitle.Trim()
+        //        };
+
+        //        db.Courses.Add(course);
+
+        //        // Save course first so CourseId is generated
+        //        await db.SaveChangesAsync();
+
+        //        // Create Tutor Course Rate record
+        //        var tutorCourseRate = new TutorCourseRate
+        //        {
+        //            CourseId = course.CourseId,
+
+        //            AdminSetMinHourlyRate = dto.MinRate.Value,
+        //            AdminSetMaxHourlyRate = dto.MaxRate.Value
+        //        };
+
+        //        db.TutorCourseRates.Add(tutorCourseRate);
+
+        //        // Save Tutor_Course_Rate
+        //        await db.SaveChangesAsync();
+
+        //        return Ok(new
+        //        {
+        //            message = "Subject added successfully",
+        //            courseId = course.CourseId,
+        //            courseTitle = course.CourseTitle,
+        //            minRate = tutorCourseRate.AdminSetMinHourlyRate,
+        //            maxRate = tutorCourseRate.AdminSetMaxHourlyRate
+        //        });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, new
+        //        {
+        //            message = "Error adding subject",
+        //            error = ex.InnerException?.Message ?? ex.Message
+        //        });
+        //    }
+        //}
 
         [HttpDelete("delete-subject/{id}")]
         public async Task<IActionResult> DeleteSubject(int id)

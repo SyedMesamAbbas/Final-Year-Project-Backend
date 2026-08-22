@@ -9,6 +9,10 @@ public partial class Course
 
     public string? CourseTitle { get; set; }
 
+    public decimal? AdminSetMinHourlyRate { get; set; }
+
+    public decimal? AdminSetMaxHourlyRate { get; set; }
+
     public virtual ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
 
     public virtual ICollection<Request> Requests { get; set; } = new List<Request>();
