@@ -434,68 +434,6 @@ namespace HouseofTutorAPI.Controllers
             }
         }
 
-        //[Authorize] Only get total fee
-        //[HttpGet("child-fee/{studentId}")]
-        //public IActionResult GetChildFee(int studentId)
-        //{
-        //    int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
-
-        //    var parent = db.Users.FirstOrDefault(x => x.UserId == userId);
-
-        //    if (parent == null)
-        //    {
-        //        return Unauthorized();
-        //    }
-
-        //    var student = db.Students
-        //        .Include(s => s.User)
-        //        .FirstOrDefault(s =>
-        //            s.StudentId == studentId &&
-        //            s.FatherCnic == parent.Cnic);
-
-        //    if (student == null)
-        //    {
-        //        return Unauthorized("This child does not belong to the logged-in parent.");
-        //    }
-        //    if (student == null)
-        //        return Unauthorized();
-
-        //    var fees = (from fee in db.StudentCourseFees
-        //                join course in db.Courses
-        //                on fee.CourseId equals course.CourseId
-
-        //                join tutor in db.Tutors
-        //                on fee.TutorId equals tutor.TutorId
-
-        //                join user in db.Users
-        //                on tutor.UserId equals user.UserId
-
-        //                where fee.StudentId == studentId
-
-        //                select new
-        //                {
-        //                    fee.FeeId,
-        //                    fee.CourseId,
-        //                    Course = course.CourseTitle,
-        //                    Tutor = user.FullName,
-        //                    TotalFee = fee.TotalFee,
-
-        //                    Paid = db.Payments
-        //                        .Where(x => x.FeeId == fee.FeeId &&
-        //                                    x.TutorStatus == "Received")
-        //                        .Sum(x => (decimal?)x.Amount) ?? 0,
-
-        //                    Remaining =
-        //                        fee.TotalFee -
-        //                        (db.Payments
-        //                        .Where(x => x.FeeId == fee.FeeId &&
-        //                                    x.TutorStatus == "Received")
-        //                        .Sum(x => (decimal?)x.Amount) ?? 0)
-        //                }).ToList();
-
-        //    return Ok(fees);
-        //}
-
         [Authorize]
         [HttpGet("children-fee")]
         public IActionResult GetChildrenFee()

@@ -54,44 +54,6 @@ namespace HouseofTutorAPI.Controllers
                 });
             }
         }
-
-        //[HttpGet("all-tutors")]
-        //public async Task<IActionResult> GetAllTutors()
-        //{
-        //    try
-        //    {
-        //        var tutors = await db.Tutors
-        //            .Include(t => t.User)
-        //            .Include(t => t.TutorCourses)
-        //                .ThenInclude(tc => tc.Course)
-        //            .Select(t => new
-        //            {
-        //                tutor_id = t.TutorId,
-        //                full_name = t.User.FullName,
-        //                subjects = t.TutorCourses
-        //                    .Select(tc => tc.Course.CourseTitle)
-        //                    .ToList(),
-        //                avg_rating = db.Feedbacks
-        //                    .Where(f => f.TutorId == t.TutorId)
-        //                    .Select(f => (double?)f.Rating)
-        //                    .Average() ?? 0,
-        //                total_reviews = db.Feedbacks
-        //                    .Count(f => f.TutorId == t.TutorId),
-        //                status = t.Status
-        //            })
-        //            .ToListAsync();
-
-        //        return Ok(tutors);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, new
-        //        {
-        //            message = "Error loading tutors",
-        //            error = ex.Message
-        //        });
-        //    }
-        //}
         
         [HttpGet("all-tutors")]// Get All Pending Tutor
         public async Task<IActionResult> GetAllTutors()
@@ -136,52 +98,6 @@ namespace HouseofTutorAPI.Controllers
             }
         }
 
-        //[HttpGet("all-tutors")]
-        //public async Task<IActionResult> GetAllTutors()
-        //{
-        //    try
-        //    {
-        //        var tutors = await db.Tutors
-        //            .Include(t => t.User)
-        //            .Include(t => t.TutorCourses)
-        //                .ThenInclude(tc => tc.Course)
-        //            .Select(t => new
-        //            {
-        //                id = t.TutorId,
-
-        //                fullName = t.User.FullName,
-
-        //                //profileImage = t.User.ProfileImage,
-
-        //                subjects = t.TutorCourses
-        //                    .Select(tc => tc.Course.CourseTitle)
-        //                    .ToList(),
-
-        //                rating = db.Feedbacks
-        //                    .Where(f => f.TutorId == t.TutorId)
-        //                    .Select(f => (double?)f.Rating)
-        //                    .Average() ?? 0,
-
-        //                totalReviews = db.Feedbacks
-        //                    .Count(f => f.TutorId == t.TutorId),
-
-        //                status = t.Status ?? "Pending"
-        //            })
-        //            .ToListAsync();
-
-        //        return Ok(tutors);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, new
-        //        {
-        //            message = "Error loading tutors",
-        //            error = ex.Message
-        //        });
-        //    }
-        //}
-
-        //To View and See detials of tutor
         [HttpGet("tutor/{id}")] //View Tutor Details 
         public async Task<IActionResult> GetTutor(int id)
         {
@@ -286,54 +202,6 @@ namespace HouseofTutorAPI.Controllers
         }
 
         //get only approved Tutor's
-        //[HttpGet("approved-tutors")]
-        //public async Task<IActionResult> GetApprovedTutors()
-        //{
-        //    try
-        //    {
-        //        var tutors = await db.Tutors
-        //            .Where(t => t.Status == "Approved")
-        //            .Include(t => t.User)
-        //            .Include(t => t.TutorCourses)
-        //                .ThenInclude(tc => tc.Course)
-        //            .Select(t => new
-        //            {
-        //                id = t.TutorId,
-
-        //                fullName = t.User.FullName,
-
-        //                // profileImage = t.User.ProfileImage,
-
-        //                subjects = t.TutorCourses
-        //                    .Select(tc => tc.Course.CourseTitle)
-        //                    .ToList(),
-
-        //                rating = db.Feedbacks
-        //                    .Where(f => f.TutorId == t.TutorId)
-        //                    .Select(f => (double?)f.Rating)
-        //                    .Average() ?? 0,
-
-        //                totalReviews = db.Feedbacks
-        //                    .Count(f => f.TutorId == t.TutorId),
-
-        //                status = t.Status
-        //            })
-        //            .ToListAsync();
-
-        //        return Ok(tutors);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, new
-        //        {
-        //            message = "Error loading approved tutors",
-        //            error = ex.InnerException?.Message ?? ex.Message
-        //        });
-        //    }
-        //}
-
-        //Get Block Tutor
-
         [HttpGet("approved-tutors")]
         public async Task<IActionResult> GetApprovedTutors()
         {
@@ -607,49 +475,6 @@ namespace HouseofTutorAPI.Controllers
             }
         }
 
-
-        //[HttpGet("all-classes")]
-        //public async Task<IActionResult> GetAllClasses()
-        //{
-        //    try
-        //    {
-        //        var classes = await db.Requests
-        //            .Include(r => r.Student)
-        //                .ThenInclude(s => s.User)
-        //            .Include(r => r.Tutor)
-        //                .ThenInclude(t => t.User)
-        //            .Include(r => r.Course)
-        //            .Select(r => new
-        //            {
-        //                request_id = r.RequestId,
-
-        //                student_name = r.Student.User.FullName,
-        //                tutor_name = r.Tutor.User.FullName,
-        //                course_name = r.Course.CourseTitle,
-        //                date = r.RequestDate.HasValue
-        //                    ? r.RequestDate.Value.ToString("yyyy-MM-dd")
-        //                    : "",
-        //                time = r.RequestDate.HasValue
-        //                    ? r.RequestDate.Value.ToString("hh:mm tt")
-        //                    : "",
-        //                status = r.Status
-        //            })
-        //            .OrderByDescending(r => r.request_id)
-        //            .ToListAsync();
-
-        //        return Ok(classes);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, new
-        //        {
-        //            message = "Error loading classes",
-        //            error = ex.Message
-        //        });
-        //    }
-        //}
-
-
         [HttpGet("all-classes")]
         public async Task<IActionResult> GetAllClasses()
         {
@@ -689,48 +514,6 @@ namespace HouseofTutorAPI.Controllers
                 });
             }
         }
-
-        //[HttpGet("all-feedback")]
-        //public async Task<IActionResult> GetAllFeedback()
-        //{
-        //    try
-        //    {
-        //        var feedbacks = await db.Feedbacks
-        //            .Include(f => f.Student)
-        //                .ThenInclude(s => s.User)
-        //            .Include(f => f.Tutor)
-        //                .ThenInclude(t => t.User)
-        //            .Select(f => new
-        //            {
-        //                feedback_id = f.FeedbackId,
-
-        //                student_name = f.Student.User.FullName,
-        //                tutor_name = f.Tutor.User.FullName,
-
-        //                rating = f.Rating ?? 0,
-        //                comment = f.Comment ?? "",
-        //                date = f.FeedbackDate.HasValue
-        //                    ? f.FeedbackDate.Value.ToString("yyyy-MM-dd")
-        //                    : "",
-
-        //                time = f.FeedbackDate.HasValue
-        //                    ? f.FeedbackDate.Value.ToString("hh:mm tt")
-        //                    : ""
-        //            })
-        //            .OrderByDescending(f => f.feedback_id)
-        //            .ToListAsync();
-
-        //        return Ok(feedbacks);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, new
-        //        {
-        //            message = "Error loading feedback",
-        //            error = ex.Message
-        //        });
-        //    }
-        //}
 
         [HttpGet("all-feedback")]
         public async Task<IActionResult> GetAllFeedback()
@@ -788,19 +571,6 @@ namespace HouseofTutorAPI.Controllers
             }
         }
 
-        //[HttpDelete("delete-feedback/{id}")]
-        //public async Task<IActionResult> DeleteFeedback(int id)
-        //{
-        //    var feedback = await db.Feedbacks.FindAsync(id);
-
-        //    if (feedback == null)
-        //        return NotFound(new { message = "Feedback not found" });
-
-        //    db.Feedbacks.Remove(feedback);
-        //    await db.SaveChangesAsync();
-
-        //    return Ok(new { message = "Feedback deleted successfully" });
-        //}
 
         [HttpDelete("delete-feedback/{id}")]
         public async Task<IActionResult> DeleteFeedback(int id)
@@ -866,43 +636,6 @@ namespace HouseofTutorAPI.Controllers
             }
         }
 
-        //[HttpPost("add-subject")]
-        //public async Task<IActionResult> AddSubject([FromBody] AddSubjectDTO dto)
-        //{
-        //    try
-        //    {
-        //        if (dto == null ||
-        //            string.IsNullOrWhiteSpace(dto.CourseTitle))
-        //        {
-        //            return BadRequest(new
-        //            {
-        //                message = "Course title is required"
-        //            });
-        //        }
-
-        //        var course = new Course
-        //        {
-        //            CourseTitle = dto.CourseTitle.Trim()
-        //        };
-
-        //        db.Courses.Add(course);
-
-        //        await db.SaveChangesAsync();
-
-        //        return Ok(new
-        //        {
-        //            message = "Subject added successfully"
-        //        });
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, new
-        //        {
-        //            message = "Error adding subject",
-        //            error = ex.Message
-        //        });
-        //    }
-        //}
 
         [HttpPost("add-subject")]//Add Course in Course table also min max rate in course
         public async Task<IActionResult> AddSubject([FromBody] AddSubjectDTO dto)
@@ -1005,111 +738,7 @@ namespace HouseofTutorAPI.Controllers
                 });
             }
         }
-        //[HttpPost("add-subject")]//Add Course in Course table and min max rate in tutor course rate
-        //public async Task<IActionResult> AddSubject([FromBody] AddSubjectDTO dto)
-        //{
-        //    try
-        //    {
-        //        // Validate request
-        //        if (dto == null || string.IsNullOrWhiteSpace(dto.CourseTitle))
-        //        {
-        //            return BadRequest(new
-        //            {
-        //                message = "Course title is required"
-        //            });
-        //        }
-
-        //        // Validate Min Rate
-        //        if (!dto.MinRate.HasValue)
-        //        {
-        //            return BadRequest(new
-        //            {
-        //                message = "Minimum rate is required"
-        //            });
-        //        }
-
-        //        // Validate Max Rate
-        //        if (!dto.MaxRate.HasValue)
-        //        {
-        //            return BadRequest(new
-        //            {
-        //                message = "Maximum rate is required"
-        //            });
-        //        }
-
-        //        // Validate rates
-        //        if (dto.MinRate.Value < 0 || dto.MaxRate.Value < 0)
-        //        {
-        //            return BadRequest(new
-        //            {
-        //                message = "Rates cannot be negative"
-        //            });
-        //        }
-
-        //        if (dto.MinRate.Value > dto.MaxRate.Value)
-        //        {
-        //            return BadRequest(new
-        //            {
-        //                message = "Minimum rate cannot be greater than maximum rate"
-        //            });
-        //        }
-
-        //        // Check if course already exists
-        //        var existingCourse = await db.Courses
-        //            .FirstOrDefaultAsync(c =>
-        //                c.CourseTitle.ToLower() == dto.CourseTitle.Trim().ToLower());
-
-        //        if (existingCourse != null)
-        //        {
-        //            return BadRequest(new
-        //            {
-        //                message = "This course already exists"
-        //            });
-        //        }
-
-        //        // Create Course
-        //        var course = new Course
-        //        {
-        //            CourseTitle = dto.CourseTitle.Trim()
-        //        };
-
-        //        db.Courses.Add(course);
-
-        //        // Save course first so CourseId is generated
-        //        await db.SaveChangesAsync();
-
-        //        // Create Tutor Course Rate record
-        //        var tutorCourseRate = new TutorCourseRate
-        //        {
-        //            CourseId = course.CourseId,
-
-        //            AdminSetMinHourlyRate = dto.MinRate.Value,
-        //            AdminSetMaxHourlyRate = dto.MaxRate.Value
-        //        };
-
-        //        db.TutorCourseRates.Add(tutorCourseRate);
-
-        //        // Save Tutor_Course_Rate
-        //        await db.SaveChangesAsync();
-
-        //        return Ok(new
-        //        {
-        //            message = "Subject added successfully",
-        //            courseId = course.CourseId,
-        //            courseTitle = course.CourseTitle,
-        //            minRate = tutorCourseRate.AdminSetMinHourlyRate,
-        //            maxRate = tutorCourseRate.AdminSetMaxHourlyRate
-        //        });
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, new
-        //        {
-        //            message = "Error adding subject",
-        //            error = ex.InnerException?.Message ?? ex.Message
-        //        });
-        //    }
-        //}
+       
 
         [HttpDelete("delete-subject/{id}")]
         public async Task<IActionResult> DeleteSubject(int id)
