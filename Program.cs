@@ -64,6 +64,9 @@ builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnC
 // -------------------------
 builder.Services.AddHttpClient<GeoService>();
 
+
+// Program.cs
+builder.WebHost.UseUrls("http://0.0.0.0:5000");
 // -------------------------
 // 5️⃣ Build app
 // -------------------------

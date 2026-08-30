@@ -229,21 +229,26 @@ namespace HouseofTutorAPI.Controllers
             }
         }
 
-        [HttpGet("blocked-users")]
+        [HttpGet("blocked-tutors")]
         public async Task<IActionResult> GetBlockedUsers()
         {
             var tutors = await db.Tutors
-                .Include(x => x.User)
-                .Include(x => x.TutorCourses)
-                    .ThenInclude(x => x.Course)
-                .Where(x => x.Status == "Blocked")
-                .Select(x => new
+                .Include(t => t.User)
+                .Where(t => t.Status == "Blocked")
+                .Select(t => new
                 {
-                    id = x.TutorId,
-                    fullName = x.User.FullName,
-                    role = "Tutor",
-                    subjects = string.Join(", ",
-                        x.TutorCourses.Select(c => c.Course.CourseTitle))
+                    id = t.TutorId,
+                    fullName = t.User.FullName,
+                    email = t.User.Email,
+
+                    // Phone number
+                    phone = t.User.Phone,
+
+                    // CNIC
+                    cnic = t.User.Cnic,
+
+                    // Location
+                    location = t.Location
                 })
                 .ToListAsync();
 
