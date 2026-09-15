@@ -37,8 +37,8 @@ namespace HouseofTutorAPI.Controllers
                 x.FatherCnic == parent.Cnic);
         }
 
-        // GET ALL CHILDREN OF LOGGED-IN PARENT
-        [HttpGet("my-children")]
+        
+        [HttpGet("my-children")]  // GET ALL CHILDREN OF LOGGED-IN PARENT
         public async Task<IActionResult> GetMyChildren()
         {
             try
@@ -77,6 +77,8 @@ namespace HouseofTutorAPI.Controllers
                     join u in db.Users
                         on s.UserId equals u.UserId
                     where s.FatherCnic == parent.Cnic
+                     && s.FeeResponsibility != null
+                  && s.FeeResponsibility.ToLower() == "byparent"
                     select new
                     {
                         s.StudentId,

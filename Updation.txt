@@ -28,7 +28,8 @@ Add-Migration AddAdminHourlyRatesToCourse
 Update-Database
 
 
-
+Add-Migration AddRequestTutorTeachingAndFeeChanges
+Update-Database
 
 
 

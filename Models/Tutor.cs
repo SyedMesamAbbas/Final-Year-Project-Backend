@@ -23,6 +23,8 @@ public partial class Tutor
 
     public double? Longitude { get; set; }
 
+    public string? TeachingMode { get; set; }
+
     public virtual ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
 
     public virtual ICollection<Request> Requests { get; set; } = new List<Request>();

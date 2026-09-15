@@ -16,6 +16,7 @@ public partial class TutorCourseRate
     public decimal? AdminSetMinHourlyRate { get; set; }
 
     public decimal? AdminSetMaxHourlyRate { get; set; }
+
     public virtual Course Course { get; set; } = null!;
 
     public virtual Tutor Tutor { get; set; } = null!;

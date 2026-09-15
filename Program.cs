@@ -1,14 +1,19 @@
 ﻿using HouseofTutorAPI.Models;
 using HouseofTutorAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+// JWT
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.RequireHttpsMetadata = false;
@@ -23,78 +28,85 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
             ValidIssuer = jwtSettings["Issuer"],
             ValidAudience = jwtSettings["Audience"],
+
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSettings["Key"])
+                Encoding.UTF8.GetBytes(
+                    jwtSettings["Key"] ??
+                    throw new InvalidOperationException("JWT Key is missing.")
+                )
             )
         };
     });
 
-// -------------------------
-// 1️⃣ Add services to the container
-// -------------------------
+// FILE UPLOAD
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 100 * 1024 * 1024;
+    options.ValueLengthLimit = int.MaxValue;
+    options.MultipartHeadersLengthLimit = int.MaxValue;
+});
+
+// KESTREL
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 100 * 1024 * 1024;
+    options.Limits.MinRequestBodyDataRate = null;
+    options.Limits.MinResponseDataRate = null;
+});
+
+builder.WebHost.UseUrls("http://0.0.0.0:5000");
+// CONTROLLERS
 builder.Services.AddControllers();
 
-// Swagger
+// SWAGGER
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// -------------------------
-// 2️⃣ Add DbContext
-// -------------------------
+// DATABASE
 builder.Services.AddDbContext<HouseofTutorContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("dbcs"))
-);
+{
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("dbcs")
+    );
+});
 
-// -------------------------
-// 3️⃣ ✅ ADD CORS (IMPORTANT)
-// -------------------------
+// CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowReactNative",
-        policy =>
-        {
-            policy.AllowAnyOrigin()   // allow mobile app
-                  .AllowAnyMethod()
-                  .AllowAnyHeader();
-        });
+    options.AddPolicy("AllowReactNative", policy =>
+    {
+        policy
+            .AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
 });
-builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-// -------------------------
-// 4️⃣ Google Geocoding Service
-// -------------------------
+
+// SERVICES
 builder.Services.AddHttpClient<GeoService>();
+builder.Services.AddHostedService<TutorRequestQueueService>();
 
-
-// Program.cs
-builder.WebHost.UseUrls("http://0.0.0.0:5000");
-// -------------------------
-// 5️⃣ Build app
-// -------------------------
+// BUILD
 var app = builder.Build();
 
-// -------------------------
-// 6️⃣ Middleware pipeline
-// -------------------------
+app.UseStaticFiles();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.UseRouting();
 
-// ✅ USE CORS HERE
 app.UseCors("AllowReactNative");
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-// -------------------------
 app.Run();
-
-
-
 
 
 

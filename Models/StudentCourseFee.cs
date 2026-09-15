@@ -17,6 +17,8 @@ public partial class StudentCourseFee
 
     public DateTime? CreatedDate { get; set; }
 
+    public string FeeResponsibility { get; set; } = null!;
+
     public virtual Course Course { get; set; } = null!;
 
     public virtual ICollection<Payment> Payments { get; set; } = new List<Payment>();

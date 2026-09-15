@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 bin/
 obj/
 .vs/
@@ -8,3 +9,11 @@ obj/
 *.dll
 *.exe
 appsettings.Development.json
+=======
+.vs/
+Add Models.txt
+House Of Tutor .sql
+HouseofTutorAPI.sln
+HouseofTutorAPI/
+SQLQuery1.sql
+>>>>>>> d7976dba18adc56c3264601d0eafb02fd84286bd

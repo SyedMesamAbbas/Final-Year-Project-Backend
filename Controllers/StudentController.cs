@@ -14,9 +14,11 @@ namespace HouseofTutorAPI.Controllers
     public class StudentController : ControllerBase
     {
         private readonly HouseofTutorContext db;
-        public StudentController(HouseofTutorContext _db)
+        private readonly IWebHostEnvironment _environment;
+        public StudentController(HouseofTutorContext _db, IWebHostEnvironment environment)
         {
             db = _db;
+            _environment = environment;
         }
 
         //Save Schedule like Tutor(Multiple)
@@ -411,20 +413,265 @@ namespace HouseofTutorAPI.Controllers
             });
         }
 
-        [Authorize]  // Hide only Normal accepted Classes 
+        //[Authorize]  // Hide only Normal accepted Classes 
+        //[HttpGet("search-by-time-location")]
+        //public async Task<IActionResult> SearchTutorByTimeAndLocation(double userLat, double userLng, int courseId)
+        //{
+        //    try
+        //    {
+        //        // =====================================================
+        //        // STEP 0: VERIFY STUDENT
+        //        // =====================================================
+        //        var userIdClaim = User.FindFirst(
+        //            System.Security.Claims.ClaimTypes.NameIdentifier);
+
+        //        if (userIdClaim == null)
+        //            return Unauthorized(new { message = "Invalid token." });
+
+        //        int userId = int.Parse(userIdClaim.Value);
+
+        //        var student = await db.Students
+        //            .FirstOrDefaultAsync(s => s.UserId == userId);
+
+        //        if (student == null)
+        //            return Unauthorized(new { message = "Student account not found." });
+
+        //        int studentId = student.StudentId;
+
+        //        // =====================================================
+        //        // STEP 1: LOAD STUDENT SCHEDULES
+        //        // =====================================================
+        //        var studentSchedules = await db.StudentSchedules
+        //            .Where(x => x.StudentId == studentId)
+        //            .ToListAsync();
+
+        //        if (studentSchedules.Count == 0)
+        //            return NotFound(new { message = "Student has no schedules defined." });
+
+        //        Console.WriteLine($"STUDENT SLOTS: {studentSchedules.Count}");
+
+        //        // =====================================================
+        //        // STEP 2: LOAD ACCEPTED REQUESTS
+        //        // =====================================================
+
+        //        var acceptedRequests = await db.Requests
+        //            .Where(r => r.Status == "Accepted")
+        //            .Select(r => new
+        //            {
+        //                r.TutorId,
+        //                r.Day,
+        //                r.Time,
+        //                r.RequestType,
+        //                r.ClassDate
+        //            })
+        //            .ToListAsync();
+
+        //        // =====================================================
+        //        // STEP 3: LOAD ALL TUTOR SCHEDULES
+        //        // =====================================================
+        //        var allTutorSchedules = await (
+        //            from sch in db.Schedules
+        //            join t in db.Tutors on sch.TutorId equals t.TutorId
+        //            join u in db.Users on t.UserId equals u.UserId
+        //            join tc in db.TutorCourses on t.TutorId equals tc.TutorId
+        //            where
+        //                tc.CourseId == courseId &&
+        //                t.Latitude != null &&
+        //                t.Longitude != null
+        //            select new
+        //            {
+        //                TutorId = t.TutorId,
+        //                Tutor = t,
+        //                User = u,
+        //                SlotDay = sch.Day,
+        //                SlotTime = sch.Time
+        //            }
+        //        ).ToListAsync();
+
+        //        Console.WriteLine($"TOTAL TUTOR SLOTS LOADED: {allTutorSchedules.Count}");
+
+        //        // =====================================================
+        //        // STEP 4: FIND COMMON SLOTS
+        //        // =====================================================
+
+        //        var tutorsWithCommonSlots = allTutorSchedules
+        //        .GroupBy(x => x.TutorId)
+        //        .Select(g =>
+        //        {
+        //            var tutorSlots = g.ToList();
+
+        //            var commonSlots = new List<TutorAvailableSlotDto>();
+
+        //            foreach (var ts in tutorSlots)
+        //            {
+        //                foreach (var ss in studentSchedules)
+        //                {
+        //                    if (NormalizeDay(ts.SlotDay) != NormalizeDay(ss.Day))
+        //                        continue;
+
+        //                    if (NormalizeTime(ts.SlotTime) != NormalizeTime(ss.Time))
+        //                        continue;
+
+        //                    var request = acceptedRequests.FirstOrDefault(r =>
+        //                            r.TutorId == ts.TutorId &&
+        //                            NormalizeDay(r.Day) == NormalizeDay(ts.SlotDay) &&
+        //                            NormalizeTime(r.Time) == NormalizeTime(ts.SlotTime));
+
+        //                    // ----------------------------------------------------
+        //                    // No accepted request
+        //                    // ----------------------------------------------------
+
+        //                    if (request == null)
+        //                    {
+        //                        commonSlots.Add(new TutorAvailableSlotDto
+        //                        {
+        //                            day = ts.SlotDay,
+        //                            time = ts.SlotTime,
+        //                            is_available = true,
+        //                            availability_message = "Available",
+        //                            request_type = "",
+        //                            class_date = null
+        //                        });
+
+        //                        continue;
+        //                    }
+
+        //                    // ----------------------------------------------------
+        //                    // NORMAL CLASS
+        //                    // Hide completely
+        //                    // ----------------------------------------------------
+
+        //                    if (string.Equals(request.RequestType, "Normal",
+        //                        StringComparison.OrdinalIgnoreCase))
+        //                    {
+        //                        continue;
+        //                    }
+
+        //                    // ----------------------------------------------------
+        //                    // RESCHEDULE / PRESCHEDULE
+        //                    // Show but unavailable
+        //                    // ----------------------------------------------------
+
+        //                    string message =
+        //                        $"Not Available on this {request.Day}. Available onward.";
+
+        //                    commonSlots.Add(new TutorAvailableSlotDto
+        //                    {
+        //                        day = ts.SlotDay,
+        //                        time = ts.SlotTime,
+        //                        is_available = false,
+        //                        availability_message = message,
+        //                        request_type = request.RequestType,
+        //                        class_date = request.ClassDate
+        //                    });
+        //                }
+        //            }
+
+        //            commonSlots = commonSlots
+        //                .GroupBy(x => new
+        //                {
+        //                    x.day,
+        //                    x.time
+        //                })
+        //                .Select(x => x.First())
+        //                .ToList();
+
+        //            return new
+        //            {
+        //                TutorId = g.Key,
+        //                Tutor = g.First().Tutor,
+        //                User = g.First().User,
+        //                CommonSlots = commonSlots
+        //            };
+        //        })
+        //        .Where(x => x.CommonSlots.Any())
+        //        .ToList();
+
+        //        // =====================================================
+        //        // STEP 5: GET RATINGS (single DB round-trip)
+        //        // =====================================================
+        //        var tutorRatings = await db.Feedbacks
+        //            .Where(f => f.FeedbackBy == "Student")
+        //            .GroupBy(f => f.TutorId)
+        //            .Select(g => new
+        //            {
+        //                TutorId = g.Key,
+        //                AverageRating = g.Average(x => x.Rating),
+        //                TotalReviews = g.Count()
+        //            })
+        //            .ToListAsync();
+
+        //        var ratingsLookup = tutorRatings.ToDictionary(r => r.TutorId);
+
+        //        // =====================================================
+        //        // STEP 6: DISTANCE FILTER + BUILD RESULT
+        //        // =====================================================
+        //        var result = tutorsWithCommonSlots
+        //            .Select(x =>
+        //            {
+        //                double distance = CalculateDistance(
+        //                    userLat, userLng,
+        //                    x.Tutor.Latitude ?? 0,
+        //                    x.Tutor.Longitude ?? 0);
+
+        //                double tutorRadius = (double)(x.Tutor.Radius ?? 0);
+
+        //                ratingsLookup.TryGetValue(x.TutorId, out var ratingInfo);
+
+        //                return new TutorSearchResultDto
+        //                {
+        //                    tutor_id = x.TutorId,
+        //                    tutor_name = x.User.FullName,
+        //                    location = x.Tutor.Location,
+        //                    distance = distance,
+        //                    tutor_radius = tutorRadius,
+        //                    average_rating = ratingInfo != null
+        //                        ? Math.Round((double)ratingInfo.AverageRating, 1)
+        //                        : 0,
+        //                    total_reviews = ratingInfo?.TotalReviews ?? 0,
+        //                    common_slots = x.CommonSlots
+        //                };
+        //            })
+        //            .Where(t => t.distance <= t.tutor_radius)
+        //            .OrderByDescending(t => t.average_rating)
+        //            .ThenByDescending(t => t.total_reviews)
+        //            .ThenBy(t => t.distance)
+        //            .ToList();
+
+        //        // =====================================================
+        //        // STEP 7: RESPONSE
+        //        // =====================================================
+        //        if (result.Count == 0)
+        //            return NotFound(new { message = "No tutors available in your area." });
+
+        //        return Ok(result);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, new { message = ex.Message });
+        //    }
+        //}
+
+        [Authorize]
         [HttpGet("search-by-time-location")]
-        public async Task<IActionResult> SearchTutorByTimeAndLocation(double userLat, double userLng, int courseId)
+        public async Task<IActionResult> SearchTutorByTimeAndLocation( double userLat, double userLng, int courseId, string sortBy = "feedback")
         {
             try
             {
                 // =====================================================
                 // STEP 0: VERIFY STUDENT
                 // =====================================================
+
                 var userIdClaim = User.FindFirst(
                     System.Security.Claims.ClaimTypes.NameIdentifier);
 
                 if (userIdClaim == null)
-                    return Unauthorized(new { message = "Invalid token." });
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Invalid token."
+                    });
+                }
 
                 int userId = int.Parse(userIdClaim.Value);
 
@@ -432,24 +679,69 @@ namespace HouseofTutorAPI.Controllers
                     .FirstOrDefaultAsync(s => s.UserId == userId);
 
                 if (student == null)
-                    return Unauthorized(new { message = "Student account not found." });
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Student account not found."
+                    });
+                }
 
                 int studentId = student.StudentId;
 
                 // =====================================================
-                // STEP 1: LOAD STUDENT SCHEDULES
+                // STEP 1: VALIDATE COURSE
                 // =====================================================
+
+                var courseExists = await db.Courses
+                    .AnyAsync(c => c.CourseId == courseId);
+
+                if (!courseExists)
+                {
+                    return NotFound(new
+                    {
+                        message = "Course not found."
+                    });
+                }
+
+                // =====================================================
+                // STEP 2: NORMALIZE SORT
+                // =====================================================
+
+                sortBy = (sortBy ?? "feedback")
+                    .Trim()
+                    .ToLower();
+
+                var validSortOptions = new[]
+                {
+                    "institute",
+                    "feedback",
+                    "grade",
+                    "fee"
+                };
+
+                if (!validSortOptions.Contains(sortBy))
+                {
+                    sortBy = "feedback";
+                }
+
+                // =====================================================
+                // STEP 3: LOAD STUDENT SCHEDULES
+                // =====================================================
+
                 var studentSchedules = await db.StudentSchedules
                     .Where(x => x.StudentId == studentId)
                     .ToListAsync();
 
                 if (studentSchedules.Count == 0)
-                    return NotFound(new { message = "Student has no schedules defined." });
-
-                Console.WriteLine($"STUDENT SLOTS: {studentSchedules.Count}");
+                {
+                    return NotFound(new
+                    {
+                        message = "Student has no schedules defined."
+                    });
+                }
 
                 // =====================================================
-                // STEP 2: LOAD ACCEPTED REQUESTS
+                // STEP 4: LOAD ACCEPTED REQUESTS
                 // =====================================================
 
                 var acceptedRequests = await db.Requests
@@ -465,215 +757,829 @@ namespace HouseofTutorAPI.Controllers
                     .ToListAsync();
 
                 // =====================================================
-                // STEP 3: LOAD ALL TUTOR SCHEDULES
+                // STEP 5:
+                // LOAD TUTOR SCHEDULE + COURSE + RATE
+                //
+                // HourlyRate comes from Tutor_Course_Rate
                 // =====================================================
-                var allTutorSchedules = await (
-                    from sch in db.Schedules
-                    join t in db.Tutors on sch.TutorId equals t.TutorId
-                    join u in db.Users on t.UserId equals u.UserId
-                    join tc in db.TutorCourses on t.TutorId equals tc.TutorId
-                    where
-                        tc.CourseId == courseId &&
-                        t.Latitude != null &&
-                        t.Longitude != null
-                    select new
-                    {
-                        TutorId = t.TutorId,
-                        Tutor = t,
-                        User = u,
-                        SlotDay = sch.Day,
-                        SlotTime = sch.Time
-                    }
-                ).ToListAsync();
 
-                Console.WriteLine($"TOTAL TUTOR SLOTS LOADED: {allTutorSchedules.Count}");
+                var allTutorSchedules =
+                    await
+                    (
+                        from sch in db.Schedules
+
+                        join t in db.Tutors
+                            on sch.TutorId equals t.TutorId
+
+                        join u in db.Users
+                            on t.UserId equals u.UserId
+
+                        join tc in db.TutorCourses
+                            on new
+                            {
+                                TutorId = t.TutorId,
+                                CourseId = courseId
+                            }
+                            equals new
+                            {
+                                TutorId = tc.TutorId,
+                                CourseId = tc.CourseId
+                            }
+
+                            // =================================================
+                            // JOIN Tutor_Course_Rate
+                            // =================================================
+
+                        join tcr in db.TutorCourseRates
+                            on new
+                            {
+                                TutorId = t.TutorId,
+                                CourseId = courseId
+                            }
+                            equals new
+                            {
+                                TutorId = tcr.TutorId,
+                                CourseId = tcr.CourseId
+                            }
+
+                        where
+                            tc.CourseId == courseId &&
+                            t.Latitude != null &&
+                            t.Longitude != null
+
+                        select new
+                        {
+                            TutorId = t.TutorId,
+
+                            Tutor = t,
+
+                            User = u,
+
+                            // =================================================
+                            // COURSE INFORMATION
+                            // =================================================
+
+                            Institute = tc.Institute,
+
+                            Grade = tc.Grade,
+
+                            // =================================================
+                            // HOURLY RATE FROM Tutor_Course_Rate
+                            // =================================================
+
+                            HourlyRate = tcr.HourlyRate,
+
+                            // =================================================
+                            // SCHEDULE
+                            // =================================================
+
+                            SlotDay = sch.Day,
+
+                            SlotTime = sch.Time
+                        }
+                    )
+                    .ToListAsync();
+
+                Console.WriteLine(
+                    $"TOTAL TUTOR SLOTS LOADED: {allTutorSchedules.Count}");
 
                 // =====================================================
-                // STEP 4: FIND COMMON SLOTS
+                // STEP 6: FIND COMMON SLOTS
                 // =====================================================
 
                 var tutorsWithCommonSlots = allTutorSchedules
-                .GroupBy(x => x.TutorId)
-                .Select(g =>
-                {
-                    var tutorSlots = g.ToList();
-
-                    var commonSlots = new List<TutorAvailableSlotDto>();
-
-                    foreach (var ts in tutorSlots)
+                    .GroupBy(x => x.TutorId)
+                    .Select(g =>
                     {
-                        foreach (var ss in studentSchedules)
+                        var tutorSlots = g.ToList();
+
+                        var commonSlots =
+                            new List<TutorAvailableSlotDto>();
+
+                        foreach (var ts in tutorSlots)
                         {
-                            if (NormalizeDay(ts.SlotDay) != NormalizeDay(ss.Day))
-                                continue;
-
-                            if (NormalizeTime(ts.SlotTime) != NormalizeTime(ss.Time))
-                                continue;
-
-                            var request = acceptedRequests.FirstOrDefault(r =>
-                                    r.TutorId == ts.TutorId &&
-                                    NormalizeDay(r.Day) == NormalizeDay(ts.SlotDay) &&
-                                    NormalizeTime(r.Time) == NormalizeTime(ts.SlotTime));
-
-                            // ----------------------------------------------------
-                            // No accepted request
-                            // ----------------------------------------------------
-
-                            if (request == null)
+                            foreach (var ss in studentSchedules)
                             {
-                                commonSlots.Add(new TutorAvailableSlotDto
+                                // -----------------------------------------
+                                // CHECK DAY
+                                // -----------------------------------------
+
+                                if (NormalizeDay(ts.SlotDay) !=
+                                    NormalizeDay(ss.Day))
                                 {
-                                    day = ts.SlotDay,
-                                    time = ts.SlotTime,
-                                    is_available = true,
-                                    availability_message = "Available",
-                                    request_type = "",
-                                    class_date = null
-                                });
+                                    continue;
+                                }
 
-                                continue;
+                                // -----------------------------------------
+                                // CHECK TIME
+                                // -----------------------------------------
+
+                                if (NormalizeTime(ts.SlotTime) !=
+                                    NormalizeTime(ss.Time))
+                                {
+                                    continue;
+                                }
+
+                                // -----------------------------------------
+                                // CHECK ACCEPTED REQUEST
+                                // -----------------------------------------
+
+                                var request =
+                                    acceptedRequests.FirstOrDefault(r =>
+                                        r.TutorId == ts.TutorId &&
+
+                                        NormalizeDay(r.Day) ==
+                                        NormalizeDay(ts.SlotDay) &&
+
+                                        NormalizeTime(r.Time) ==
+                                        NormalizeTime(ts.SlotTime));
+
+                                // -----------------------------------------
+                                // NO ACCEPTED REQUEST
+                                // -----------------------------------------
+
+                                if (request == null)
+                                {
+                                    commonSlots.Add(
+                                        new TutorAvailableSlotDto
+                                        {
+                                            day = ts.SlotDay,
+                                            time = ts.SlotTime,
+
+                                            is_available = true,
+
+                                            availability_message =
+                                                "Available",
+
+                                            request_type = "",
+
+                                            class_date = null
+                                        });
+
+                                    continue;
+                                }
+
+                                // -----------------------------------------
+                                // NORMAL CLASS
+                                // -----------------------------------------
+
+                                if (string.Equals(
+                                    request.RequestType,
+                                    "Normal",
+                                    StringComparison.OrdinalIgnoreCase))
+                                {
+                                    continue;
+                                }
+
+                                // -----------------------------------------
+                                // RESCHEDULE / PRESCHEDULE
+                                // -----------------------------------------
+
+                                string message =
+                                    $"Not Available on this {request.Day}. Available onward.";
+
+                                commonSlots.Add(
+                                    new TutorAvailableSlotDto
+                                    {
+                                        day = ts.SlotDay,
+                                        time = ts.SlotTime,
+
+                                        is_available = false,
+
+                                        availability_message =
+                                            message,
+
+                                        request_type =
+                                            request.RequestType,
+
+                                        class_date =
+                                            request.ClassDate
+                                    });
                             }
-
-                            // ----------------------------------------------------
-                            // NORMAL CLASS
-                            // Hide completely
-                            // ----------------------------------------------------
-
-                            if (string.Equals(request.RequestType, "Normal",
-                                StringComparison.OrdinalIgnoreCase))
-                            {
-                                continue;
-                            }
-
-                            // ----------------------------------------------------
-                            // RESCHEDULE / PRESCHEDULE
-                            // Show but unavailable
-                            // ----------------------------------------------------
-
-                            string message =
-                                $"Not Available on this {request.Day}. Available onward.";
-
-                            commonSlots.Add(new TutorAvailableSlotDto
-                            {
-                                day = ts.SlotDay,
-                                time = ts.SlotTime,
-                                is_available = false,
-                                availability_message = message,
-                                request_type = request.RequestType,
-                                class_date = request.ClassDate
-                            });
                         }
-                    }
 
-                    commonSlots = commonSlots
-                        .GroupBy(x => new
+                        // -----------------------------------------
+                        // REMOVE DUPLICATE SLOTS
+                        // -----------------------------------------
+
+                        commonSlots = commonSlots
+                            .GroupBy(x => new
+                            {
+                                x.day,
+                                x.time
+                            })
+                            .Select(x => x.First())
+                            .ToList();
+
+                        var first = tutorSlots.First();
+
+                        return new
                         {
-                            x.day,
-                            x.time
-                        })
-                        .Select(x => x.First())
-                        .ToList();
+                            TutorId = g.Key,
 
-                    return new
-                    {
-                        TutorId = g.Key,
-                        Tutor = g.First().Tutor,
-                        User = g.First().User,
-                        CommonSlots = commonSlots
-                    };
-                })
-                .Where(x => x.CommonSlots.Any())
-                .ToList();
+                            Tutor = first.Tutor,
+
+                            User = first.User,
+
+                            // =========================================
+                            // COURSE INFORMATION
+                            // =========================================
+
+                            Institute = first.Institute,
+
+                            Grade = first.Grade,
+
+                            // =========================================
+                            // RATE FROM Tutor_Course_Rate
+                            // =========================================
+
+                            HourlyRate = first.HourlyRate,
+
+                            // =========================================
+                            // COMMON SLOTS
+                            // =========================================
+
+                            CommonSlots = commonSlots
+                        };
+                    })
+                    .Where(x => x.CommonSlots.Any())
+                    .ToList();
 
                 // =====================================================
-                // STEP 5: GET RATINGS (single DB round-trip)
+                // STEP 7: GET FEEDBACK / RATINGS
                 // =====================================================
+
                 var tutorRatings = await db.Feedbacks
                     .Where(f => f.FeedbackBy == "Student")
                     .GroupBy(f => f.TutorId)
                     .Select(g => new
                     {
                         TutorId = g.Key,
-                        AverageRating = g.Average(x => x.Rating),
-                        TotalReviews = g.Count()
+
+                        AverageRating =
+                            g.Average(x => x.Rating),
+
+                        TotalReviews =
+                            g.Count()
                     })
                     .ToListAsync();
 
-                var ratingsLookup = tutorRatings.ToDictionary(r => r.TutorId);
+                var ratingsLookup =
+                    tutorRatings.ToDictionary(
+                        r => r.TutorId);
 
                 // =====================================================
-                // STEP 6: DISTANCE FILTER + BUILD RESULT
+                // STEP 8: BUILD RESULT
                 // =====================================================
+
                 var result = tutorsWithCommonSlots
                     .Select(x =>
                     {
-                        double distance = CalculateDistance(
-                            userLat, userLng,
-                            x.Tutor.Latitude ?? 0,
-                            x.Tutor.Longitude ?? 0);
+                        double distance =
+                            CalculateDistance(
+                                userLat,
+                                userLng,
+                                x.Tutor.Latitude ?? 0,
+                                x.Tutor.Longitude ?? 0);
 
-                        double tutorRadius = (double)(x.Tutor.Radius ?? 0);
+                        double tutorRadius =
+                            (double)(x.Tutor.Radius ?? 0);
 
-                        ratingsLookup.TryGetValue(x.TutorId, out var ratingInfo);
+                        ratingsLookup.TryGetValue(
+                            x.TutorId,
+                            out var ratingInfo);
+
+                        double averageRating =
+                            ratingInfo != null
+                                ? Math.Round(
+                                    (double)ratingInfo.AverageRating,
+                                    1)
+                                : 0;
+
+                        int totalReviews =
+                            ratingInfo?.TotalReviews ?? 0;
 
                         return new TutorSearchResultDto
                         {
-                            tutor_id = x.TutorId,
-                            tutor_name = x.User.FullName,
-                            location = x.Tutor.Location,
-                            distance = distance,
-                            tutor_radius = tutorRadius,
-                            average_rating = ratingInfo != null
-                                ? Math.Round((double)ratingInfo.AverageRating, 1)
-                                : 0,
-                            total_reviews = ratingInfo?.TotalReviews ?? 0,
-                            common_slots = x.CommonSlots
+                            // =========================================
+                            // BASIC TUTOR INFORMATION
+                            // =========================================
+
+                            tutor_id =
+                                x.TutorId,
+
+                            tutor_name =
+                                x.User.FullName,
+
+                            location =
+                                x.Tutor.Location,
+
+                            distance =
+                                Math.Round(distance, 2),
+
+                            tutor_radius =
+                                tutorRadius,
+
+                            // =========================================
+                            // COURSE INFORMATION
+                            // =========================================
+
+                            institute =
+                                x.Institute,
+
+                            grade =
+                                x.Grade,
+
+                            // =========================================
+                            // HOURLY RATE
+                            // FROM Tutor_Course_Rate
+                            // =========================================
+
+                            hourly_rate =
+                                x.HourlyRate,
+
+                            // =========================================
+                            // FEEDBACK
+                            // =========================================
+
+                            average_rating =
+                                averageRating,
+
+                            total_reviews =
+                                totalReviews,
+
+                            // =========================================
+                            // SLOTS
+                            // =========================================
+
+                            common_slots =
+                                x.CommonSlots
                         };
                     })
-                    .Where(t => t.distance <= t.tutor_radius)
-                    .OrderByDescending(t => t.average_rating)
-                    .ThenByDescending(t => t.total_reviews)
-                    .ThenBy(t => t.distance)
+                    .Where(t =>
+                        t.distance <= t.tutor_radius)
                     .ToList();
 
                 // =====================================================
-                // STEP 7: RESPONSE
+                // STEP 9: SORT
                 // =====================================================
-                if (result.Count == 0)
-                    return NotFound(new { message = "No tutors available in your area." });
 
-                return Ok(result);
+                switch (sortBy)
+                {
+                    // ---------------------------------------------
+                    // INSTITUTE A-Z
+                    // ---------------------------------------------
+
+                    case "institute":
+
+                        result = result
+                            .OrderBy(x =>
+                                x.institute ?? "")
+                            .ThenByDescending(x =>
+                                x.average_rating)
+                            .ThenBy(x =>
+                                x.distance)
+                            .ToList();
+
+                        break;
+
+                    // ---------------------------------------------
+                    // FEEDBACK HIGH TO LOW
+                    // ---------------------------------------------
+
+                    case "feedback":
+
+                        result = result
+                            .OrderByDescending(x =>
+                                x.average_rating)
+                            .ThenByDescending(x =>
+                                x.total_reviews)
+                            .ThenBy(x =>
+                                x.distance)
+                            .ToList();
+
+                        break;
+
+                    // ---------------------------------------------
+                    // GRADE A TO F
+                    // ---------------------------------------------
+
+                    case "grade":
+
+                        result = result
+                            .OrderBy(x =>
+                                GetGradeOrder(x.grade))
+                            .ThenByDescending(x =>
+                                x.average_rating)
+                            .ThenBy(x =>
+                                x.distance)
+                            .ToList();
+
+                        break;
+
+                    // ---------------------------------------------
+                    // FEE LOW TO HIGH
+                    // ---------------------------------------------
+
+                    case "fee":
+
+                        result = result
+                            .OrderBy(x =>
+                                x.hourly_rate)
+                            .ThenByDescending(x =>
+                                x.average_rating)
+                            .ThenBy(x =>
+                                x.distance)
+                            .ToList();
+
+                        break;
+
+                    default:
+
+                        result = result
+                            .OrderByDescending(x =>
+                                x.average_rating)
+                            .ThenByDescending(x =>
+                                x.total_reviews)
+                            .ThenBy(x =>
+                                x.distance)
+                            .ToList();
+
+                        break;
+                }
+
+                // =====================================================
+                // STEP 10: NO RESULT
+                // =====================================================
+
+                if (result.Count == 0)
+                {
+                    return NotFound(new
+                    {
+                        message =
+                            "No tutors available in your area."
+                    });
+                }
+
+                // =====================================================
+                // STEP 11: RESPONSE
+                // =====================================================
+
+                return Ok(new
+                {
+                    sort_by = sortBy,
+
+                    course_id = courseId,
+
+                    total_tutors = result.Count,
+
+                    tutors = result
+                });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = ex.Message });
+                Console.WriteLine(
+                    "SEARCH TUTOR ERROR: " +
+                    ex.ToString());
+
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        message =
+                            "An error occurred while searching tutors.",
+
+                        error =
+                            ex.Message
+                    });
             }
         }
 
+        //[Authorize] // Request to Tutor for normal class and can send request for re and pre-scheduled tutor
+        //[HttpPost("create-request")] 
+        //public async Task<IActionResult> CreateRequest([FromBody] CreateRequestDto dto)
+        //{
+        //    try
+        //    {
+        //        Console.WriteLine($"DAY: {dto.day}, TIME: {dto.time}");
+
+        //        // -----------------------------------------
+        //        // 1. Validate Day and Time
+        //        // -----------------------------------------
+        //        if (string.IsNullOrWhiteSpace(dto.day) ||
+        //            string.IsNullOrWhiteSpace(dto.time))
+        //        {
+        //            return BadRequest(new
+        //            {
+        //                message = "Day or time missing"
+        //            });
+        //        }
+
+        //        // -----------------------------------------
+        //        // 2. Validate Learning Mode
+        //        // -----------------------------------------
+        //        if (string.IsNullOrWhiteSpace(dto.learning_mode))
+        //        {
+        //            return BadRequest(new
+        //            {
+        //                message = "Learning mode is required."
+        //            });
+        //        }
+
+        //        if (dto.learning_mode == "SpecificTime")
+        //        {
+        //            if (!dto.learning_duration.HasValue ||
+        //                dto.learning_duration <= 0)
+        //            {
+        //                return BadRequest(new
+        //                {
+        //                    message = "Learning duration is required for Specific Time."
+        //                });
+        //            }
+
+        //            if (string.IsNullOrWhiteSpace(dto.learning_duration_unit))
+        //            {
+        //                return BadRequest(new
+        //                {
+        //                    message = "Learning duration unit is required."
+        //                });
+        //            }
+        //        }
+
+        //        // -----------------------------------------
+        //        // 3. Get Logged-in Student
+        //        // -----------------------------------------
+        //        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        //        if (string.IsNullOrWhiteSpace(userIdClaim))
+        //        {
+        //            return Unauthorized(new
+        //            {
+        //                message = "User not authenticated."
+        //            });
+        //        }
+
+        //        var userId = int.Parse(userIdClaim);
+
+        //        var student = await db.Students
+        //            .FirstOrDefaultAsync(s => s.UserId == userId);
+
+        //        if (student == null)
+        //        {
+        //            return NotFound(new
+        //            {
+        //                message = "Student not found"
+        //            });
+        //        }
+
+        //        // -----------------------------------------
+        //        // 4. Check Tutor
+        //        // -----------------------------------------
+        //        var tutor = await db.Tutors
+        //            .FirstOrDefaultAsync(t => t.TutorId == dto.tutor_id);
+
+        //        if (tutor == null)
+        //        {
+        //            return NotFound(new
+        //            {
+        //                message = "Tutor not found."
+        //            });
+        //        }
+
+        //        // -----------------------------------------
+        //        // 5. Check Tutor's Existing
+        //        //    Reschedule / Preschedule Requests
+        //        // -----------------------------------------
+        //        var occupiedRequest = await db.Requests
+        //            .Where(r =>
+        //                r.TutorId == dto.tutor_id &&
+        //                r.Day == dto.day &&
+        //                r.Time == $"{dto.day}, {dto.time}" &&
+        //                (r.RequestType == "Reschedule" ||
+        //                 r.RequestType == "Preschedule") &&
+        //                (r.Status == "Pending" ||
+        //                 r.Status == "Approved" ||
+        //                 r.Status == "Accepted"))
+        //            .OrderBy(r => r.ClassDate)
+        //            .FirstOrDefaultAsync();
+
+        //        // -----------------------------------------
+        //        // 6. Find Next Available Day
+        //        // -----------------------------------------
+        //        string? nextAvailableDay = null;
+
+        //        if (occupiedRequest != null)
+        //        {
+        //            var days = new[]
+        //            {
+        //        "Monday",
+        //        "Tuesday",
+        //        "Wednesday",
+        //        "Thursday",
+        //        "Friday",
+        //        "Saturday",
+        //        "Sunday"
+        //    };
+
+        //            int selectedDayIndex = Array.FindIndex(
+        //                days,
+        //                d => d.Equals(dto.day, StringComparison.OrdinalIgnoreCase)
+        //            );
+
+        //            if (selectedDayIndex >= 0)
+        //            {
+        //                // Check next 7 days
+        //                for (int i = 1; i <= 7; i++)
+        //                {
+        //                    string checkingDay =
+        //                        days[(selectedDayIndex + i) % 7];
+
+        //                    // Check whether tutor has a regular schedule
+        //                    var hasSchedule = await db.Schedules
+        //                        .AnyAsync(s =>
+        //                            s.TutorId == dto.tutor_id &&
+        //                            s.Day == checkingDay &&
+        //                            s.Time == dto.time);
+
+        //                    // Check whether tutor is already occupied
+        //                    var hasConflict = await db.Requests
+        //                        .AnyAsync(r =>
+        //                            r.TutorId == dto.tutor_id &&
+        //                            r.Day == checkingDay &&
+        //                            r.Time == $"{checkingDay}, {dto.time}" &&
+        //                            (r.RequestType == "Reschedule" ||
+        //                             r.RequestType == "Preschedule") &&
+        //                            (r.Status == "Pending" ||
+        //                             r.Status == "Approved" ||
+        //                             r.Status == "Accepted"));
+
+        //                    if (hasSchedule && !hasConflict)
+        //                    {
+        //                        nextAvailableDay = checkingDay;
+        //                        break;
+        //                    }
+        //                }
+        //            }
+        //        }
+
+        //        // -----------------------------------------
+        //        // 7. Create Normal Request
+        //        // -----------------------------------------
+        //        string fullTime = $"{dto.day}, {dto.time}";
+
+        //        var request = new Request
+        //        {
+        //            StudentId = student.StudentId,
+        //            TutorId = dto.tutor_id,
+        //            CourseId = dto.course_id,
+
+        //            Time = fullTime,
+
+        //            RequestDate = DateTime.Now,
+
+        //            Status = "Pending",
+
+        //            ClassDate = DateOnly.FromDateTime(DateTime.Now),
+
+        //            Day = dto.day,
+
+        //            RequestType = "Normal",
+
+        //            ParentRequestId = null,
+
+        //            LearningMode = dto.learning_mode,
+
+        //            LearningDuration = dto.learning_duration,
+
+        //            LearningDurationUnit = dto.learning_duration_unit
+        //        };
+
+        //        db.Requests.Add(request);
+
+        //        await db.SaveChangesAsync();
+
+        //        // -----------------------------------------
+        //        // 8. Return Response
+        //        // -----------------------------------------
+        //        if (occupiedRequest != null)
+        //        {
+        //            string reason = occupiedRequest.RequestType == "Reschedule"
+        //                ? "Reschedule class"
+        //                : "Preschedule class";
+
+        //            string message;
+
+        //            if (!string.IsNullOrWhiteSpace(nextAvailableDay))
+        //            {
+        //                message =
+        //                    $"This tutor is unavailable on {dto.day} at {dto.time} " +
+        //                    $"due to a {reason}. " +
+        //                    $"Tutor is available next {nextAvailableDay}.";
+        //            }
+        //            else
+        //            {
+        //                message =
+        //                    $"This tutor is unavailable on {dto.day} at {dto.time} " +
+        //                    $"due to a {reason}.";
+        //            }
+
+        //            return Ok(new
+        //            {
+        //                message = "Class request created successfully.",
+        //                note = message,
+
+        //                request_id = request.RequestId,
+        //                request_type = request.RequestType,
+
+        //                tutor_unavailable = true,
+        //                unavailable_reason = reason,
+
+        //                requested_day = dto.day,
+        //                requested_time = dto.time,
+
+        //                next_available_day = nextAvailableDay,
+
+        //                learning_mode = request.LearningMode,
+        //                learning_duration = request.LearningDuration,
+        //                learning_duration_unit = request.LearningDurationUnit
+        //            });
+        //        }
+
+        //        // No conflict
+        //        return Ok(new
+        //        {
+        //            message = "Class request created successfully",
+
+        //            note = (string?)null,
+
+        //            request_id = request.RequestId,
+        //            request_type = request.RequestType,
+
+        //            tutor_unavailable = false,
+        //            unavailable_reason = (string?)null,
+
+        //            requested_day = dto.day,
+        //            requested_time = dto.time,
+
+        //            next_available_day = (string?)null,
+
+        //            learning_mode = request.LearningMode,
+        //            learning_duration = request.LearningDuration,
+        //            learning_duration_unit = request.LearningDurationUnit
+        //        });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, new
+        //        {
+        //            message = ex.Message
+        //        });
+        //    }
+        //}
 
         [Authorize]
-        [HttpPost("create-request")] // Request to Tutor for normal class and can send request for re and pre-scheduled tutor
-        public async Task<IActionResult> CreateRequest([FromBody] CreateRequestDto dto)
+        [HttpPost("create-request")] //Request multiple tutor
+        public async Task<IActionResult> CreateRequest( [FromBody] CreateRequestDto dto)
         {
+            using var transaction =
+                await db.Database.BeginTransactionAsync();
+
             try
             {
-                Console.WriteLine($"DAY: {dto.day}, TIME: {dto.time}");
+                // =====================================================
+                // STEP 1: Validate Tutors
+                // =====================================================
 
-                // -----------------------------------------
-                // 1. Validate Day and Time
-                // -----------------------------------------
+                if (dto.tutor_ids == null ||
+                    dto.tutor_ids.Count == 0)
+                {
+                    return BadRequest(new
+                    {
+                        message = "At least one tutor must be selected."
+                    });
+                }
+
+                dto.tutor_ids = dto.tutor_ids
+                    .Distinct()
+                    .ToList();
+
+                // =====================================================
+                // STEP 2: Validate Day / Time
+                // =====================================================
+
                 if (string.IsNullOrWhiteSpace(dto.day) ||
                     string.IsNullOrWhiteSpace(dto.time))
                 {
                     return BadRequest(new
                     {
-                        message = "Day or time missing"
+                        message = "Day or time missing."
                     });
                 }
 
-                // -----------------------------------------
-                // 2. Validate Learning Mode
-                // -----------------------------------------
+                // =====================================================
+                // STEP 3: Validate Learning Mode
+                // =====================================================
+
                 if (string.IsNullOrWhiteSpace(dto.learning_mode))
                 {
                     return BadRequest(new
@@ -689,23 +1595,28 @@ namespace HouseofTutorAPI.Controllers
                     {
                         return BadRequest(new
                         {
-                            message = "Learning duration is required for Specific Time."
+                            message =
+                                "Learning duration is required for Specific Time."
                         });
                     }
 
-                    if (string.IsNullOrWhiteSpace(dto.learning_duration_unit))
+                    if (string.IsNullOrWhiteSpace(
+                        dto.learning_duration_unit))
                     {
                         return BadRequest(new
                         {
-                            message = "Learning duration unit is required."
+                            message =
+                                "Learning duration unit is required."
                         });
                     }
                 }
 
-                // -----------------------------------------
-                // 3. Get Logged-in Student
-                // -----------------------------------------
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                // =====================================================
+                // STEP 4: Logged-in Student
+                // =====================================================
+
+                var userIdClaim =
+                    User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
                 if (string.IsNullOrWhiteSpace(userIdClaim))
                 {
@@ -715,220 +1626,231 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
-                var userId = int.Parse(userIdClaim);
+                if (!int.TryParse(userIdClaim, out int userId))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Invalid user ID."
+                    });
+                }
 
                 var student = await db.Students
-                    .FirstOrDefaultAsync(s => s.UserId == userId);
+                    .FirstOrDefaultAsync(
+                        s => s.UserId == userId);
 
                 if (student == null)
                 {
                     return NotFound(new
                     {
-                        message = "Student not found"
+                        message = "Student not found."
                     });
                 }
 
-                // -----------------------------------------
-                // 4. Check Tutor
-                // -----------------------------------------
-                var tutor = await db.Tutors
-                    .FirstOrDefaultAsync(t => t.TutorId == dto.tutor_id);
+                // =====================================================
+                // STEP 5: Course
+                // =====================================================
 
-                if (tutor == null)
+                var courseExists = await db.Courses
+                    .AnyAsync(c =>
+                        c.CourseId == dto.course_id);
+
+                if (!courseExists)
                 {
                     return NotFound(new
                     {
-                        message = "Tutor not found."
+                        message = "Course not found."
                     });
                 }
 
-                // -----------------------------------------
-                // 5. Check Tutor's Existing
-                //    Reschedule / Preschedule Requests
-                // -----------------------------------------
-                var occupiedRequest = await db.Requests
-                    .Where(r =>
-                        r.TutorId == dto.tutor_id &&
-                        r.Day == dto.day &&
-                        r.Time == $"{dto.day}, {dto.time}" &&
-                        (r.RequestType == "Reschedule" ||
-                         r.RequestType == "Preschedule") &&
-                        (r.Status == "Pending" ||
-                         r.Status == "Approved" ||
-                         r.Status == "Accepted"))
-                    .OrderBy(r => r.ClassDate)
-                    .FirstOrDefaultAsync();
+                // =====================================================
+                // STEP 6: Tutors
+                // =====================================================
 
-                // -----------------------------------------
-                // 6. Find Next Available Day
-                // -----------------------------------------
-                string? nextAvailableDay = null;
+                var tutors = await db.Tutors
+                    .Where(t =>
+                        dto.tutor_ids.Contains(t.TutorId))
+                    .ToListAsync();
 
-                if (occupiedRequest != null)
+                var missingTutorIds = dto.tutor_ids
+                    .Except(tutors.Select(t => t.TutorId))
+                    .ToList();
+
+                if (missingTutorIds.Any())
                 {
-                    var days = new[]
+                    return NotFound(new
                     {
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-                "Saturday",
-                "Sunday"
-            };
-
-                    int selectedDayIndex = Array.FindIndex(
-                        days,
-                        d => d.Equals(dto.day, StringComparison.OrdinalIgnoreCase)
-                    );
-
-                    if (selectedDayIndex >= 0)
-                    {
-                        // Check next 7 days
-                        for (int i = 1; i <= 7; i++)
-                        {
-                            string checkingDay =
-                                days[(selectedDayIndex + i) % 7];
-
-                            // Check whether tutor has a regular schedule
-                            var hasSchedule = await db.Schedules
-                                .AnyAsync(s =>
-                                    s.TutorId == dto.tutor_id &&
-                                    s.Day == checkingDay &&
-                                    s.Time == dto.time);
-
-                            // Check whether tutor is already occupied
-                            var hasConflict = await db.Requests
-                                .AnyAsync(r =>
-                                    r.TutorId == dto.tutor_id &&
-                                    r.Day == checkingDay &&
-                                    r.Time == $"{checkingDay}, {dto.time}" &&
-                                    (r.RequestType == "Reschedule" ||
-                                     r.RequestType == "Preschedule") &&
-                                    (r.Status == "Pending" ||
-                                     r.Status == "Approved" ||
-                                     r.Status == "Accepted"));
-
-                            if (hasSchedule && !hasConflict)
-                            {
-                                nextAvailableDay = checkingDay;
-                                break;
-                            }
-                        }
-                    }
+                        message = "One or more tutors were not found.",
+                        missing_tutor_ids = missingTutorIds
+                    });
                 }
 
-                // -----------------------------------------
-                // 7. Create Normal Request
-                // -----------------------------------------
-                string fullTime = $"{dto.day}, {dto.time}";
+                // =====================================================
+                // STEP 7: Check Existing Searching Group
+                // =====================================================
 
-                var request = new Request
+                var existingGroup = await db.RequestGroups
+                    .FirstOrDefaultAsync(g =>
+                        g.StudentId == student.StudentId &&
+                        g.CourseId == dto.course_id &&
+                        g.Status == "Searching");
+
+                if (existingGroup != null)
+                {
+                    return BadRequest(new
+                    {
+                        message =
+                            "You already have an active tutor request.",
+                        request_group_id =
+                            existingGroup.RequestGroupId
+                    });
+                }
+
+                // =====================================================
+                // STEP 8: Create Request Group
+                // =====================================================
+
+                var group = new RequestGroup
                 {
                     StudentId = student.StudentId,
-                    TutorId = dto.tutor_id,
+
                     CourseId = dto.course_id,
 
-                    Time = fullTime,
+                    CreatedDate = DateTime.Now,
 
-                    RequestDate = DateTime.Now,
+                    Status = "Searching",
 
-                    Status = "Pending",
-
-                    ClassDate = DateOnly.FromDateTime(DateTime.Now),
-
-                    Day = dto.day,
-
-                    RequestType = "Normal",
-
-                    ParentRequestId = null,
-
-                    LearningMode = dto.learning_mode,
-
-                    LearningDuration = dto.learning_duration,
-
-                    LearningDurationUnit = dto.learning_duration_unit
+                    CurrentRequestId = null
                 };
 
-                db.Requests.Add(request);
+                db.RequestGroups.Add(group);
 
                 await db.SaveChangesAsync();
 
-                // -----------------------------------------
-                // 8. Return Response
-                // -----------------------------------------
-                if (occupiedRequest != null)
+                // =====================================================
+                // STEP 9: Create Tutor Requests
+                // =====================================================
+
+                string fullTime =
+                    $"{dto.day}, {dto.time}";
+
+                DateTime now = DateTime.Now;
+
+                DateTime firstDeadline =
+                    now.AddMinutes(2);
+
+                var requests = new List<Request>();
+
+                for (int i = 0; i < dto.tutor_ids.Count; i++)
                 {
-                    string reason = occupiedRequest.RequestType == "Reschedule"
-                        ? "Reschedule class"
-                        : "Preschedule class";
+                    int tutorId = dto.tutor_ids[i];
 
-                    string message;
+                    bool isFirstTutor = i == 0;
 
-                    if (!string.IsNullOrWhiteSpace(nextAvailableDay))
+                    var tutorRequest = new Request
                     {
-                        message =
-                            $"This tutor is unavailable on {dto.day} at {dto.time} " +
-                            $"due to a {reason}. " +
-                            $"Tutor is available next {nextAvailableDay}.";
-                    }
-                    else
-                    {
-                        message =
-                            $"This tutor is unavailable on {dto.day} at {dto.time} " +
-                            $"due to a {reason}.";
-                    }
+                        StudentId = student.StudentId,
 
-                    return Ok(new
-                    {
-                        message = "Class request created successfully.",
-                        note = message,
+                        TutorId = tutorId,
 
-                        request_id = request.RequestId,
-                        request_type = request.RequestType,
+                        CourseId = dto.course_id,
 
-                        tutor_unavailable = true,
-                        unavailable_reason = reason,
+                        Time = fullTime,
 
-                        requested_day = dto.day,
-                        requested_time = dto.time,
+                        RequestDate = now,
 
-                        next_available_day = nextAvailableDay,
+                        Status = isFirstTutor
+                            ? "Pending"
+                            : "Queued",
 
-                        learning_mode = request.LearningMode,
-                        learning_duration = request.LearningDuration,
-                        learning_duration_unit = request.LearningDurationUnit
-                    });
+                        ClassDate =
+                            DateOnly.FromDateTime(now),
+
+                        Day = dto.day,
+
+                        RequestType = "Normal",
+
+                        ParentRequestId = null,
+
+                        LearningMode =
+                            dto.learning_mode,
+
+                        LearningDuration =
+                            dto.learning_duration,
+
+                        LearningDurationUnit =
+                            dto.learning_duration_unit,
+
+                        RequestGroupId =
+                            group.RequestGroupId,
+
+                        TutorSequence = i + 1,
+
+                        ResponseDeadline =
+                            isFirstTutor
+                                ? firstDeadline
+                                : null
+                    };
+
+                    requests.Add(tutorRequest);
                 }
 
-                // No conflict
+                db.Requests.AddRange(requests);
+
+                await db.SaveChangesAsync();
+
+                // =====================================================
+                // STEP 10: Current Request = First Tutor
+                // =====================================================
+
+                group.CurrentRequestId =
+                    requests[0].RequestId;
+
+                await db.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                // =====================================================
+                // STEP 11: Response
+                // =====================================================
+
                 return Ok(new
                 {
-                    message = "Class request created successfully",
+                    message =
+                        "Tutor request created successfully. The first tutor has 2 minutes to accept.",
 
-                    note = (string?)null,
+                    request_group_id =
+                        group.RequestGroupId,
 
-                    request_id = request.RequestId,
-                    request_type = request.RequestType,
+                    request_id =
+                        requests[0].RequestId,
 
-                    tutor_unavailable = false,
-                    unavailable_reason = (string?)null,
+                    current_tutor_id =
+                        requests[0].TutorId,
 
-                    requested_day = dto.day,
-                    requested_time = dto.time,
+                    current_tutor_sequence =
+                        requests[0].TutorSequence,
 
-                    next_available_day = (string?)null,
+                    total_tutors =
+                        requests.Count,
 
-                    learning_mode = request.LearningMode,
-                    learning_duration = request.LearningDuration,
-                    learning_duration_unit = request.LearningDurationUnit
+                    response_deadline =
+                        requests[0].ResponseDeadline,
+
+                    status =
+                        requests[0].Status
                 });
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
+
                 return StatusCode(500, new
                 {
-                    message = ex.Message
+                    message =
+                        "Error while creating tutor request.",
+
+                    error =
+                        ex.Message
                 });
             }
         }
@@ -1142,7 +2064,7 @@ namespace HouseofTutorAPI.Controllers
             return Ok(availableSlots);
         }
 
-        //Request for Re-Schedule to tutor
+        //Request for Re-Schedule to tutors
         [HttpPost("create-reschedule")]
         public async Task<IActionResult> CreateReschedule(RescheduleRequestDto dto)
         {
@@ -1815,7 +2737,409 @@ namespace HouseofTutorAPI.Controllers
             });
         }
 
-        //Help Method to Calulate Radius 
+        // =========================================================
+        // STUDENT UPLOAD COURSE CONTENT / ASYNC LESSON PLAN
+        // =========================================================
+
+        [Authorize]
+        [HttpPost("upload-course-content")]
+        [RequestSizeLimit(100 * 1024 * 1024)]
+        public async Task<IActionResult> UploadCourseContent([FromForm] UploadCourseContentDto model)
+        {
+            try
+            {
+                Console.WriteLine("=================================");
+                Console.WriteLine("COURSE CONTENT UPLOAD RECEIVED");
+                Console.WriteLine("Content-Type: " + Request.ContentType);
+                Console.WriteLine("Content-Length: " + Request.ContentLength);
+                Console.WriteLine("Course ID: " + model.course_id);
+                Console.WriteLine("Title: " + model.title);
+                Console.WriteLine("File: " + model.file?.FileName);
+                Console.WriteLine("File Size: " + model.file?.Length);
+                Console.WriteLine("=================================");
+
+                var userIdClaim =
+                    User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrWhiteSpace(userIdClaim))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "User is not logged in."
+                    });
+                }
+
+                if (!int.TryParse(userIdClaim, out int userId))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Invalid user token."
+                    });
+                }
+
+                var student = await db.Students
+                    .FirstOrDefaultAsync(s => s.UserId == userId);
+
+                if (student == null)
+                {
+                    return NotFound(new
+                    {
+                        message = "Student not found."
+                    });
+                }
+
+                if (model.course_id <= 0)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Invalid course ID."
+                    });
+                }
+
+                var course = await db.Courses
+                    .FirstOrDefaultAsync(
+                        c => c.CourseId == model.course_id);
+
+                if (course == null)
+                {
+                    return NotFound(new
+                    {
+                        message = "Course not found."
+                    });
+                }
+
+                var studentCourse =
+                    await db.StudentCourses.FirstOrDefaultAsync(sc =>
+                        sc.StudentId == student.StudentId &&
+                        sc.CourseId == model.course_id);
+
+                if (studentCourse == null)
+                {
+                    return BadRequest(new
+                    {
+                        message =
+                            "Student is not enrolled in this course."
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(model.title))
+                {
+                    return BadRequest(new
+                    {
+                        message = "Title is required."
+                    });
+                }
+
+                if (model.file == null || model.file.Length == 0)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Please select a file."
+                    });
+                }
+
+                const long maxFileSize =
+                    100 * 1024 * 1024;
+
+                if (model.file.Length > maxFileSize)
+                {
+                    return BadRequest(new
+                    {
+                        message =
+                            "File size cannot be greater than 100 MB."
+                    });
+                }
+
+                Console.WriteLine("Saving file...");
+
+                string filePath =
+                    await SaveCourseContent(
+                        model.file,
+                        student.StudentId,
+                        model.course_id);
+
+                Console.WriteLine(
+                    "Saved File Path: " + filePath);
+
+                if (filePath == "Invalid")
+                {
+                    return BadRequest(new
+                    {
+                        message =
+                            "Only PDF, DOC, DOCX, JPG, JPEG and PNG files are allowed."
+                    });
+                }
+
+                if (string.IsNullOrEmpty(filePath))
+                {
+                    return StatusCode(500, new
+                    {
+                        message =
+                            "Unable to save course content file."
+                    });
+                }
+
+                var content = new StudentCourseContent
+                {
+                    StudentId = student.StudentId,
+                    CourseId = model.course_id,
+                    Title = model.title.Trim(),
+
+                    Description =
+                        string.IsNullOrWhiteSpace(model.description)
+                            ? null
+                            : model.description.Trim(),
+
+                    FileName =
+                        Path.GetFileName(model.file.FileName),
+
+                    FilePath = filePath,
+
+                    UploadedDate = DateTime.Now
+                };
+
+                db.StudentCourseContents.Add(content);
+
+                await db.SaveChangesAsync();
+
+                Console.WriteLine(
+                    "COURSE CONTENT SAVED TO DATABASE");
+
+                return Ok(new
+                {
+                    status = "Success",
+
+                    message =
+                        "Course content uploaded successfully.",
+
+                    data = new
+                    {
+                        content_id = content.ContentId,
+                        student_id = content.StudentId,
+                        course_id = content.CourseId,
+                        course_title = course.CourseTitle,
+                        title = content.Title,
+                        description = content.Description,
+                        file_name = content.FileName,
+                        file_path = content.FilePath,
+                        uploaded_date = content.UploadedDate
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    "=================================");
+
+                Console.WriteLine(
+                    "COURSE CONTENT UPLOAD ERROR");
+
+                Console.WriteLine(
+                    ex.ToString());
+
+                Console.WriteLine(
+                    "=================================");
+
+                return StatusCode(500, new
+                {
+                    message =
+                        ex.InnerException?.Message ??
+                        ex.Message
+                });
+            }
+        }
+
+        // =========================================================
+        // SAVE COURSE CONTENT FILE
+        // =========================================================
+        private async Task<string> SaveCourseContent(IFormFile file, int studentId, int courseId)
+        {
+            if (file == null ||
+                file.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            // =====================================================
+            // ALLOWED FILE TYPES
+            // =====================================================
+
+            var allowedExtensions =
+                new HashSet<string>(
+                    StringComparer.OrdinalIgnoreCase)
+                {
+                ".pdf",
+                ".doc",
+                ".docx",
+                ".jpg",
+                ".jpeg",
+                ".png"
+                };
+
+            // =====================================================
+            // EXTENSION
+            // =====================================================
+
+            string extension =
+                Path.GetExtension(
+                    file.FileName
+                );
+
+            if (string.IsNullOrWhiteSpace(extension) ||
+                !allowedExtensions.Contains(extension))
+            {
+                return "Invalid";
+            }
+
+            // =====================================================
+            // WWWROOT
+            // =====================================================
+
+            string webRootPath =
+                _environment.WebRootPath;
+
+            if (string.IsNullOrWhiteSpace(webRootPath))
+            {
+                webRootPath =
+                    Path.Combine(
+                        Directory.GetCurrentDirectory(),
+                        "wwwroot"
+                    );
+            }
+
+            // =====================================================
+            // CREATE FOLDER
+            // =====================================================
+
+            string folder =
+                Path.Combine(
+                    webRootPath,
+                    "CourseContent"
+                );
+
+            if (!Directory.Exists(folder))
+            {
+                Directory.CreateDirectory(folder);
+            }
+
+            // =====================================================
+            // UNIQUE FILE NAME
+            // =====================================================
+
+            string uniqueFileName =
+                $"Student_{studentId}" +
+                $"_Course_{courseId}" +
+                $"_{Guid.NewGuid():N}" +
+                extension.ToLowerInvariant();
+
+            // =====================================================
+            // FULL FILE PATH
+            // =====================================================
+
+            string fullFilePath =
+                Path.Combine(
+                    folder,
+                    uniqueFileName
+                );
+
+            // =====================================================
+            // SAVE FILE
+            // =====================================================
+
+            await using (
+                var stream =
+                    new FileStream(
+                        fullFilePath,
+                        FileMode.Create,
+                        FileAccess.Write,
+                        FileShare.None)
+            )
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            // =====================================================
+            // DATABASE PATH
+            // =====================================================
+
+            return
+                "/CourseContent/" +
+                uniqueFileName;
+        }
+
+
+        // =========================================================
+        // STUDENT GET OWN COURSE CONTENT
+        // =========================================================
+        [Authorize]
+        [HttpGet("my-course-content/{courseId}")]
+        public async Task<IActionResult> GetMyCourseContent(int courseId)
+        {
+            try
+            {
+                var userIdClaim =
+                    User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "User is not logged in."
+                    });
+                }
+
+                int userId = int.Parse(userIdClaim);
+
+
+                var student = await db.Students
+                    .FirstOrDefaultAsync(s => s.UserId == userId);
+
+                if (student == null)
+                {
+                    return NotFound(new
+                    {
+                        message = "Student not found."
+                    });
+                }
+
+
+                var content = await db.StudentCourseContents
+                    .Where(c =>
+                        c.StudentId == student.StudentId &&
+                        c.CourseId == courseId)
+                    .OrderByDescending(c => c.UploadedDate)
+                    .Select(c => new
+                    {
+                        content_id = c.ContentId,
+                        student_id = c.StudentId,
+                        course_id = c.CourseId,
+                        course_title = c.Course.CourseTitle,
+                        title = c.Title,
+                        description = c.Description,
+                        file_name = c.FileName,
+                        file_path = c.FilePath,
+                        uploaded_date = c.UploadedDate
+                    })
+                    .ToListAsync();
+
+
+                return Ok(new
+                {
+                    status = "Success",
+                    count = content.Count,
+                    data = content
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "Error: " +
+                        (ex.InnerException?.Message ?? ex.Message)
+                });
+            }
+        }
+
         private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
         {
             // Earth radius in kilometers
@@ -1887,6 +3211,41 @@ namespace HouseofTutorAPI.Controllers
                        .ToLower();
         }
 
+        private int GetGradeOrder(string? grade)
+        {
+            string value =
+                (grade ?? "")
+                .Trim()
+                .ToUpper();
+
+            return value switch
+            {
+                "A+" => 1,
+                "A" => 2,
+                "A-" => 3,
+
+                "B+" => 4,
+                "B" => 5,
+                "B-" => 6,
+
+                "C+" => 7,
+                "C" => 8,
+                "C-" => 9,
+
+                "D+" => 10,
+                "D" => 11,
+                "D-" => 12,
+
+                "E+" => 13,
+                "E" => 14,
+                "E-" => 15,
+
+                "F" => 16,
+
+                _ => 99
+            };
+        }
+
     }
 
     //Dto stand for (Data Transfer Object)
@@ -1905,15 +3264,39 @@ namespace HouseofTutorAPI.Controllers
     public class TutorSearchResultDto
     {
         public int tutor_id { get; set; }
-        public string tutor_name { get; set; }
-        public string location { get; set; }
+
+        public string? tutor_name { get; set; }
+
+        public string? location { get; set; }
+
         public double distance { get; set; }
+
         public double tutor_radius { get; set; }
+
+        // ==========================================
+        // COURSE INFORMATION
+        // ==========================================
+
+        public string? institute { get; set; }
+
+        public string? grade { get; set; }
+
+        public decimal hourly_rate { get; set; }
+
+        // ==========================================
+        // FEEDBACK
+        // ==========================================
+
         public double average_rating { get; set; }
+
         public int total_reviews { get; set; }
 
-        // ✅ All common slots between this tutor and the student
-        public List<TutorAvailableSlotDto> common_slots { get; set; } = new();
+        // ==========================================
+        // SLOTS
+        // ==========================================
+
+        public List<TutorAvailableSlotDto> common_slots { get; set; }
+            = new List<TutorAvailableSlotDto>();
     }
     //to get all classes of student
     public class StudentClassDto
@@ -1925,19 +3308,36 @@ namespace HouseofTutorAPI.Controllers
         public string time { get; set; }
     }
 
-    //Student request tutor for class
+    //Request Multiple tutor 
     public class CreateRequestDto
     {
-        public int tutor_id { get; set; }
+        public List<int> tutor_ids { get; set; } = new List<int>();
+
         public int course_id { get; set; }
+
         public string day { get; set; }
+
         public string time { get; set; }
-        public DateOnly class_date { get; set; }
-        // New Fields
-        public string learning_mode { get; set; }              // FullTime / SpecificTime
-        public int? learning_duration { get; set; }            // e.g. 2
-        public string? learning_duration_unit { get; set; }    // Days / Weeks / Months
+
+        public string learning_mode { get; set; }
+
+        public int? learning_duration { get; set; }
+
+        public string? learning_duration_unit { get; set; }
     }
+    ////Student request tutor for class
+    //public class CreateRequestDto
+    //{
+    //    public int tutor_id { get; set; }
+    //    public int course_id { get; set; }
+    //    public string day { get; set; }
+    //    public string time { get; set; }
+    //    public DateOnly class_date { get; set; }
+    //    // New Fields
+    //    public string learning_mode { get; set; }              // FullTime / SpecificTime
+    //    public int? learning_duration { get; set; }            // e.g. 2
+    //    public string? learning_duration_unit { get; set; }    // Days / Weeks / Months
+    //}
     public class StudentSaveScheduleDto
     {
         public string? availabilityType { get; set; }
@@ -2009,5 +3409,15 @@ namespace HouseofTutorAPI.Controllers
         public List<studentCommonSlotDto> Slots { get; set; } = new();
     }
 
-    
+    //To Upload Course Content
+    public class UploadCourseContentDto
+    {
+        public int course_id { get; set; }
+
+        public string title { get; set; }
+
+        public string description { get; set; }
+
+        public IFormFile file { get; set; }
+    }
 }

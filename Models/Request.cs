@@ -27,13 +27,21 @@ public partial class Request
 
     public int? ParentRequestId { get; set; }
 
-    public string? LearningMode { get; set; }          // FullTime / SpecificTime
+    public string? LearningMode { get; set; }
 
-    public int? LearningDuration { get; set; }         // e.g. 2
+    public int? LearningDuration { get; set; }
 
-    public string? LearningDurationUnit { get; set; }  // Days / Weeks / Months
+    public string? LearningDurationUnit { get; set; }
+
+    public int? RequestGroupId { get; set; }
+
+    public int? TutorSequence { get; set; }
+
+    public DateTime? ResponseDeadline { get; set; }
 
     public virtual Course? Course { get; set; }
+
+    public virtual RequestGroup? RequestGroup { get; set; }
 
     public virtual Student? Student { get; set; }
 

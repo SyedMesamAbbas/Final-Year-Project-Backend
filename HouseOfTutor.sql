@@ -21,6 +21,7 @@ CREATE TABLE Tutor (
     status VARCHAR(20),
     Latitude FLOAT, 
     Longitude FLOAT,
+    teaching_mode VARCHAR(20) NULL,
 
     FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
@@ -34,6 +35,7 @@ CREATE TABLE Student (
     Latitude FLOAT, 
     Longitude FLOAT,
     Father_Cnic VARCHAR(20),
+    fee_responsibility VARCHAR(20) NULL,
 
     FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
@@ -75,6 +77,7 @@ CREATE TABLE Tutor_Course (
     grade VARCHAR(10),
     is_completed BIT NOT NULL DEFAULT 0,
     completed_date DATETIME NULL,
+    institute VARCHAR(150) NULL,
 
     PRIMARY KEY (tutor_id, course_id),
     FOREIGN KEY (tutor_id) REFERENCES Tutor(tutor_id),
@@ -105,7 +108,12 @@ CREATE TABLE Request (
     learning_mode VARCHAR(20),      -- FullTime / SpecificTime
     learning_duration INT NULL,     -- e.g. 2
     learning_duration_unit VARCHAR(20) NULL, -- Days / Weeks / Months
+    request_group_id INT NULL,
+    tutor_sequence INT NULL,
+    response_deadline DATETIME NULL,
 
+
+    FOREIGN KEY(request_group_id) REFERENCES Request_Group(request_group_id),
     FOREIGN KEY (student_id) REFERENCES Student(student_id),
     FOREIGN KEY (tutor_id) REFERENCES Tutor(tutor_id),
     FOREIGN KEY (course_id) REFERENCES Course(course_id)
@@ -148,6 +156,7 @@ CREATE TABLE Student_Course_Fee
     course_id INT NOT NULL,
     total_fee DECIMAL(10,2) NOT NULL,
     created_date DATETIME DEFAULT GETDATE(),
+    fee_responsibility VARCHAR(20) NOT NULL DEFAULT 'Parent',
 
     FOREIGN KEY(student_id) REFERENCES Student(student_id),
     FOREIGN KEY(tutor_id) REFERENCES Tutor(tutor_id),
@@ -167,4 +176,43 @@ CREATE TABLE Payment
     remarks VARCHAR(200),
 
     FOREIGN KEY(fee_id) REFERENCES Student_Course_Fee(fee_id)
+);
+
+
+CREATE TABLE Request_Group
+(
+    request_group_id INT PRIMARY KEY IDENTITY(1,1),
+
+    student_id INT NOT NULL,
+    course_id INT NOT NULL,
+
+    created_date DATETIME DEFAULT GETDATE(),
+
+    status VARCHAR(30) NOT NULL,
+    -- Searching / Accepted / Rejected / Expired / Cancelled
+
+    current_request_id INT NULL,
+
+    FOREIGN KEY(student_id) REFERENCES Student(student_id),
+    FOREIGN KEY(course_id) REFERENCES Course(course_id)
+);
+
+CREATE TABLE Student_Course_Content
+(
+    content_id INT PRIMARY KEY IDENTITY(1,1),
+
+    student_id INT NOT NULL,
+    course_id INT NOT NULL,
+
+    title VARCHAR(150) NOT NULL,
+
+    file_name VARCHAR(255),
+    file_path VARCHAR(500),
+
+    description VARCHAR(500),
+
+    uploaded_date DATETIME DEFAULT GETDATE(),
+
+    FOREIGN KEY(student_id) REFERENCES Student(student_id),
+    FOREIGN KEY(course_id) REFERENCES Course(course_id)
 );

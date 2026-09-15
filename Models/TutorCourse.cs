@@ -15,6 +15,8 @@ public partial class TutorCourse
 
     public DateTime? CompletedDate { get; set; }
 
+    public string? Institute { get; set; }
+
     public virtual Course Course { get; set; } = null!;
 
     public virtual Tutor Tutor { get; set; } = null!;

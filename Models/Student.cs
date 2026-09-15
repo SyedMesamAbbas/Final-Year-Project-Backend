@@ -9,7 +9,6 @@ public partial class Student
 
     public int? UserId { get; set; }
 
-    public string? Status { get; set; }
     public string? Location { get; set; }
 
     public double? Latitude { get; set; }
@@ -18,9 +17,17 @@ public partial class Student
 
     public string? FatherCnic { get; set; }
 
+    public string? Status { get; set; }
+
+    public string? FeeResponsibility { get; set; }
+
     public virtual ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
 
+    public virtual ICollection<RequestGroup> RequestGroups { get; set; } = new List<RequestGroup>();
+
     public virtual ICollection<Request> Requests { get; set; } = new List<Request>();
+
+    public virtual ICollection<StudentCourseContent> StudentCourseContents { get; set; } = new List<StudentCourseContent>();
 
     public virtual ICollection<StudentCourseFee> StudentCourseFees { get; set; } = new List<StudentCourseFee>();
 
