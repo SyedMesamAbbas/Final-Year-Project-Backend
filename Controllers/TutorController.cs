@@ -2705,16 +2705,132 @@ namespace HouseofTutorAPI.Controllers
         // =========================================================
         // TUTOR VIEW STUDENT COURSE CONTENT
         // =========================================================
+        //[Authorize]
+        //[HttpGet("tutor-course-content/{studentId}/{courseId}")]
+        //public async Task<IActionResult> GetTutorCourseContent( int studentId, int courseId)
+        //{
+        //    try
+        //    {
+        //        // -------------------------------------------------
+        //        // STEP 1: Get logged-in User ID
+        //        // -------------------------------------------------
 
+        //        var userIdClaim =
+        //            User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        //        if (string.IsNullOrEmpty(userIdClaim))
+        //        {
+        //            return Unauthorized(new
+        //            {
+        //                message = "User is not logged in."
+        //            });
+        //        }
+
+        //        int userId = int.Parse(userIdClaim);
+
+
+        //        // -------------------------------------------------
+        //        // STEP 2: Find Tutor
+        //        // -------------------------------------------------
+
+        //        var tutor = await db.Tutors
+        //            .FirstOrDefaultAsync(t => t.UserId == userId);
+
+        //        if (tutor == null)
+        //        {
+        //            return NotFound(new
+        //            {
+        //                message = "Tutor not found."
+        //            });
+        //        }
+
+
+        //        // -------------------------------------------------
+        //        // STEP 3: Verify Tutor teaches this
+        //        // Student + Course
+        //        //
+        //        // Request table proves relationship
+        //        // -------------------------------------------------
+
+        //        bool hasRelationship =
+        //            await db.Requests.AnyAsync(r =>
+        //                r.StudentId == studentId &&
+        //                r.TutorId == tutor.TutorId &&
+        //                r.CourseId == courseId);
+
+
+        //        if (!hasRelationship)
+        //        {
+        //            return Forbid();
+        //        }
+
+
+        //        // -------------------------------------------------
+        //        // STEP 4: Get Student Course Content
+        //        // -------------------------------------------------
+
+        //        var content =
+        //            await db.StudentCourseContents
+        //            .Where(c =>
+        //                c.StudentId == studentId &&
+        //                c.CourseId == courseId)
+        //            .OrderByDescending(c => c.UploadedDate)
+        //            .Select(c => new
+        //            {
+        //                content_id = c.ContentId,
+
+        //                student_id = c.StudentId,
+
+        //                course_id = c.CourseId,
+
+        //                course_title =
+        //                    c.Course.CourseTitle,
+
+        //                title = c.Title,
+
+        //                description = c.Description,
+
+        //                file_name = c.FileName,
+
+        //                file_path = c.FilePath,
+
+        //                uploaded_date = c.UploadedDate
+        //            })
+        //            .ToListAsync();
+
+
+        //        return Ok(new
+        //        {
+        //            status = "Success",
+
+        //            message =
+        //                content.Count > 0
+        //                    ? "Course content found."
+        //                    : "No course content uploaded yet.",
+
+        //            count = content.Count,
+
+        //            data = content
+        //        });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, new
+        //        {
+        //            message = "Error: " +
+        //                (ex.InnerException?.Message ?? ex.Message)
+        //        });
+        //    }
+        //}
         [Authorize]
         [HttpGet("tutor-course-content/{studentId}/{courseId}")]
         public async Task<IActionResult> GetTutorCourseContent( int studentId, int courseId)
         {
             try
             {
-                // -------------------------------------------------
-                // STEP 1: Get logged-in User ID
-                // -------------------------------------------------
+                // =====================================================
+                // STEP 1: GET LOGGED-IN USER ID
+                // =====================================================
 
                 var userIdClaim =
                     User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -2727,12 +2843,18 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
-                int userId = int.Parse(userIdClaim);
+                if (!int.TryParse(userIdClaim, out int userId))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Invalid user ID."
+                    });
+                }
 
 
-                // -------------------------------------------------
-                // STEP 2: Find Tutor
-                // -------------------------------------------------
+                // =====================================================
+                // STEP 2: FIND TUTOR
+                // =====================================================
 
                 var tutor = await db.Tutors
                     .FirstOrDefaultAsync(t => t.UserId == userId);
@@ -2746,19 +2868,16 @@ namespace HouseofTutorAPI.Controllers
                 }
 
 
-                // -------------------------------------------------
-                // STEP 3: Verify Tutor teaches this
-                // Student + Course
-                //
-                // Request table proves relationship
-                // -------------------------------------------------
+                // =====================================================
+                // STEP 3: VERIFY TUTOR + STUDENT + COURSE
+                // =====================================================
 
                 bool hasRelationship =
                     await db.Requests.AnyAsync(r =>
                         r.StudentId == studentId &&
                         r.TutorId == tutor.TutorId &&
-                        r.CourseId == courseId);
-
+                        r.CourseId == courseId
+                    );
 
                 if (!hasRelationship)
                 {
@@ -2766,9 +2885,9 @@ namespace HouseofTutorAPI.Controllers
                 }
 
 
-                // -------------------------------------------------
-                // STEP 4: Get Student Course Content
-                // -------------------------------------------------
+                // =====================================================
+                // STEP 4: GET COURSE CONTENT
+                // =====================================================
 
                 var content =
                     await db.StudentCourseContents
@@ -2800,25 +2919,108 @@ namespace HouseofTutorAPI.Controllers
                     .ToListAsync();
 
 
+                // =====================================================
+                // STEP 5: CREATE CORRECT FILE URL
+                //
+                // IMPORTANT:
+                //
+                // API:
+                // http://192.168.137.1:5000/api
+                //
+                // Static file:
+                // http://192.168.137.1:5000/CourseContent/file.jpg
+                //
+                // NOT:
+                // http://192.168.137.1:5000/api/CourseContent/file.jpg
+                // =====================================================
+
+                var result = content.Select(c =>
+                {
+                    string fileUrl = null;
+
+                    if (!string.IsNullOrWhiteSpace(c.file_path))
+                    {
+                        string cleanPath = c.file_path
+                            .Replace("\\", "/")
+                            .TrimStart('/');
+
+                        // -------------------------------------------------
+                        // If database contains:
+                        //
+                        // CourseContent/Student_2_Course_1.jpg
+                        //
+                        // OR:
+                        //
+                        // /CourseContent/Student_2_Course_1.jpg
+                        // -------------------------------------------------
+
+                        fileUrl =
+                            $"{Request.Scheme}://{Request.Host}/{cleanPath}";
+                    }
+                    else if (!string.IsNullOrWhiteSpace(c.file_name))
+                    {
+                        // -------------------------------------------------
+                        // Fallback if FilePath is empty
+                        // -------------------------------------------------
+
+                        string cleanFileName =
+                            Uri.EscapeDataString(c.file_name);
+
+                        fileUrl =
+                            $"{Request.Scheme}://{Request.Host}/CourseContent/{cleanFileName}";
+                    }
+
+                    return new
+                    {
+                        content_id = c.content_id,
+
+                        student_id = c.student_id,
+
+                        course_id = c.course_id,
+
+                        course_title = c.course_title,
+
+                        title = c.title,
+
+                        description = c.description,
+
+                        file_name = c.file_name,
+
+                        file_path = c.file_path,
+
+                        // NEW:
+                        // Correct URL for opening file
+                        file_url = fileUrl,
+
+                        uploaded_date = c.uploaded_date
+                    };
+                }).ToList();
+
+
+                // =====================================================
+                // STEP 6: RETURN RESPONSE
+                // =====================================================
+
                 return Ok(new
                 {
                     status = "Success",
 
                     message =
-                        content.Count > 0
+                        result.Count > 0
                             ? "Course content found."
                             : "No course content uploaded yet.",
 
-                    count = content.Count,
+                    count = result.Count,
 
-                    data = content
+                    data = result
                 });
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new
                 {
-                    message = "Error: " +
+                    message =
+                        "Error: " +
                         (ex.InnerException?.Message ?? ex.Message)
                 });
             }

@@ -286,7 +286,37 @@ namespace HouseofTutorAPI.Controllers
         }
 
         [Authorize]
-        [HttpGet("my-courses")] // get courses of student which Class is not Accepted
+        [HttpGet("my-courses-for-student-add-courses")] // get courses of student  for frontend (StudentAddCourses)
+        public async Task<IActionResult> GetStudentCoursesForStudentAddCourses()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)
+                              ?? User.FindFirst("sub");
+
+            if (userIdClaim == null)
+                return Unauthorized(new { message = "Invalid token" });
+
+            int userId = int.Parse(userIdClaim.Value);
+
+            var student = await db.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound(new { message = "Student not found" });
+
+            var courses = await db.StudentCourses
+                .Where(sc => sc.StudentId == student.StudentId)
+                .Select(sc => new CourseDto
+                {
+                    course_id = sc.Course.CourseId,
+                    course_name = sc.Course.CourseTitle
+                })
+                .ToListAsync();
+
+            return Ok(courses);
+        }
+
+        [Authorize]
+        [HttpGet("my-courses")] // get courses of student which Class is not Accepted and for frontend (StudentCourses)
         public async Task<IActionResult> GetStudentCourses()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)
@@ -3029,7 +3059,6 @@ namespace HouseofTutorAPI.Controllers
             string uniqueFileName =
                 $"Student_{studentId}" +
                 $"_Course_{courseId}" +
-                $"_{Guid.NewGuid():N}" +
                 extension.ToLowerInvariant();
 
             // =====================================================
@@ -3066,7 +3095,6 @@ namespace HouseofTutorAPI.Controllers
                 "/CourseContent/" +
                 uniqueFileName;
         }
-
 
         // =========================================================
         // STUDENT GET OWN COURSE CONTENT
