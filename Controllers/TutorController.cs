@@ -2633,46 +2633,117 @@ namespace HouseofTutorAPI.Controllers
         }
 
 
+        // =========================================================
+        // TUTOR PAYMENT LIST
+        // =========================================================
         [Authorize]
         [HttpGet("payment-list")]
         public IActionResult PaymentList()
         {
-            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            try
+            {
+                // =====================================================
+                // 1. GET TUTOR USER ID FROM JWT
+                // =====================================================
 
-            var tutor = db.Tutors
-                .FirstOrDefault(x => x.UserId == userId);
+                int userId = int.Parse(
+                    User.FindFirst(ClaimTypes.NameIdentifier).Value
+                );
 
-            if (tutor == null)
-                return NotFound();
 
-            var data = (from payment in db.Payments
-                        join fee in db.StudentCourseFees
+                // =====================================================
+                // 2. FIND TUTOR
+                // =====================================================
+
+                var tutor = db.Tutors
+                    .FirstOrDefault(x => x.UserId == userId);
+
+                if (tutor == null)
+                {
+                    return NotFound(new
+                    {
+                        message = "Tutor not found"
+                    });
+                }
+
+
+                // =====================================================
+                // 3. GET PAYMENT LIST
+                //
+                // IMPORTANT:
+                // Received payments are NOT shown in the list.
+                // =====================================================
+
+                var payments = (
+                    from payment in db.Payments
+
+                    join fee in db.StudentCourseFees
                         on payment.FeeId equals fee.FeeId
 
-                        join student in db.Students
+                    join student in db.Students
                         on fee.StudentId equals student.StudentId
 
-                        join user in db.Users
+                    join user in db.Users
                         on student.UserId equals user.UserId
 
-                        join course in db.Courses
+                    join course in db.Courses
                         on fee.CourseId equals course.CourseId
 
-                        where fee.TutorId == tutor.TutorId
+                    where fee.TutorId == tutor.TutorId
+                          && payment.TutorStatus != "Received"
 
-                        select new
-                        {
-                            payment.PaymentId,
-                            Student = user.FullName,
-                            Course = course.CourseTitle,
-                            payment.Amount,
-                            payment.PaymentType,
-                            payment.ParentStatus,
-                            payment.TutorStatus,
-                            payment.PaymentDate
-                        }).ToList();
+                    select new
+                    {
+                        payment.PaymentId,
+                        Student = user.FullName,
+                        Course = course.CourseTitle,
+                        payment.Amount,
+                        payment.PaymentType,
+                        payment.ParentStatus,
+                        payment.TutorStatus,
+                        payment.PaymentDate
+                    }
+                ).ToList();
 
-            return Ok(data);
+
+                // =====================================================
+                // 4. CALCULATE TOTAL COLLECTED
+                //
+                // Only payments whose TutorStatus is "Received"
+                // are counted in TotalCollected.
+                // =====================================================
+
+                decimal totalCollected = (
+                    from payment in db.Payments
+
+                    join fee in db.StudentCourseFees
+                        on payment.FeeId equals fee.FeeId
+
+                    where fee.TutorId == tutor.TutorId
+                          && payment.TutorStatus == "Received"
+
+                    select (decimal?)payment.Amount
+                ).Sum() ?? 0;
+
+
+                // =====================================================
+                // 5. RETURN BOTH
+                // =====================================================
+
+                return Ok(new
+                {
+                    payments = payments,
+                    totalCollected = totalCollected
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "Error while loading payment list",
+                    error = ex.Message
+                });
+            }
         }
 
         //Update Payment status Recieved or Not Recieved 

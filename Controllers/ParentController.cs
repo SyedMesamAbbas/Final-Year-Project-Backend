@@ -36,7 +36,6 @@ namespace HouseofTutorAPI.Controllers
                 x.StudentId == studentId &&
                 x.FatherCnic == parent.Cnic);
         }
-
         
         [HttpGet("my-children")]  // GET ALL CHILDREN OF LOGGED-IN PARENT
         public async Task<IActionResult> GetMyChildren()

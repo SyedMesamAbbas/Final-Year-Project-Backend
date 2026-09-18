@@ -3168,6 +3168,301 @@ namespace HouseofTutorAPI.Controllers
             }
         }
 
+        // =========================================================
+        // STUDENT GET OWN FEE
+        // Only students with FeeResponsibility = ByMe
+        // =========================================================
+
+        [Authorize]
+        [HttpGet("student-fee")]
+        public IActionResult GetStudentFee()
+        {
+            try
+            {
+                // =====================================================
+                // 1. GET LOGGED-IN USER ID FROM JWT
+                // =====================================================
+
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    return Unauthorized("User ID not found.");
+                }
+
+                int userId = int.Parse(userIdClaim);
+
+
+                // =====================================================
+                // 2. GET LOGGED-IN STUDENT
+                // =====================================================
+
+                var student = db.Students
+                    .Include(s => s.User)
+                    .FirstOrDefault(s =>
+                        s.UserId == userId &&
+                        s.FeeResponsibility == "ByMe");
+
+                if (student == null)
+                {
+                    return Unauthorized(
+                        "Student not found or Fee Responsibility is not ByMe."
+                    );
+                }
+
+
+                // =====================================================
+                // 3. GET ALL FEES OF THIS STUDENT
+                // =====================================================
+
+                var fees = (
+                    from fee in db.StudentCourseFees
+
+                    join course in db.Courses
+                        on fee.CourseId equals course.CourseId
+
+                    join tutor in db.Tutors
+                        on fee.TutorId equals tutor.TutorId
+
+                    join tutorUser in db.Users
+                        on tutor.UserId equals tutorUser.UserId
+
+                    where fee.StudentId == student.StudentId
+
+                    select new
+                    {
+                        fee.FeeId,
+                        fee.CourseId,
+
+                        Course = course.CourseTitle,
+
+                        Tutor = tutorUser.FullName,
+
+                        TotalFee = fee.TotalFee,
+
+                        Paid = db.Payments
+                            .Where(p =>
+                                p.FeeId == fee.FeeId &&
+                                p.TutorStatus == "Received")
+                            .Sum(p => (decimal?)p.Amount) ?? 0
+                    }
+                ).ToList();
+
+
+                // =====================================================
+                // 4. COURSE-WISE FEE
+                // =====================================================
+
+                var courseFees = fees.Select(f => new
+                {
+                    f.FeeId,
+                    f.CourseId,
+                    f.Course,
+                    f.Tutor,
+                    f.TotalFee,
+                    f.Paid,
+
+                    Remaining = f.TotalFee - f.Paid
+                }).ToList();
+
+
+                // =====================================================
+                // 5. STUDENT TOTALS
+                // =====================================================
+
+                decimal totalFee = courseFees.Sum(x => x.TotalFee);
+
+                decimal totalPaid = courseFees.Sum(x => x.Paid);
+
+                decimal totalRemaining = courseFees.Sum(x => x.Remaining);
+
+
+                // =====================================================
+                // 6. RETURN STUDENT FEE
+                // =====================================================
+
+                return Ok(new
+                {
+                    StudentId = student.StudentId,
+
+                    StudentName = student.User != null
+                        ? student.User.FullName
+                        : "Unknown",
+
+                    FeeResponsibility = student.FeeResponsibility,
+
+                    TotalFee = totalFee,
+
+                    TotalPaid = totalPaid,
+
+                    TotalRemaining = totalRemaining,
+
+                    Courses = courseFees
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An error occurred while getting student fee.",
+                    error = ex.Message
+                });
+            }
+        }
+
+
+        // =========================================================
+        // STUDENT SEND PAYMENT
+        // Only students with FeeResponsibility = ByMe
+        // =========================================================
+
+        [Authorize]
+        [HttpPost("student-send-payment")]
+        public IActionResult SendStudentPayment(PaymentRequestDto model)
+        {
+            try
+            {
+                // =====================================================
+                // 1. GET LOGGED-IN USER ID FROM JWT
+                // =====================================================
+
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    return Unauthorized("User ID not found.");
+                }
+
+                int userId = int.Parse(userIdClaim);
+
+
+                // =====================================================
+                // 2. GET LOGGED-IN STUDENT
+                // Only FeeResponsibility = ByMe
+                // =====================================================
+
+                var student = db.Students
+                    .FirstOrDefault(s =>
+                        s.UserId == userId &&
+                        s.FeeResponsibility == "ByMe");
+
+                if (student == null)
+                {
+                    return Unauthorized(
+                        "Student not found or Fee Responsibility is not ByMe."
+                    );
+                }
+
+
+                // =====================================================
+                // 3. GET STUDENT'S FEE
+                // IMPORTANT:
+                // Fee must belong to logged-in student
+                // =====================================================
+
+                var fee = db.StudentCourseFees
+                    .FirstOrDefault(x =>
+                        x.FeeId == model.FeeId &&
+                        x.StudentId == student.StudentId);
+
+                if (fee == null)
+                {
+                    return NotFound("Fee not found for this student.");
+                }
+
+
+                // =====================================================
+                // 4. GET ALREADY RECEIVED PAYMENT
+                // =====================================================
+
+                var received = db.Payments
+                    .Where(x =>
+                        x.FeeId == model.FeeId &&
+                        x.TutorStatus == "Received")
+                    .Sum(x => (decimal?)x.Amount) ?? 0;
+
+
+                // =====================================================
+                // 5. CALCULATE REMAINING
+                // =====================================================
+
+                var remaining = fee.TotalFee - received;
+
+
+                // =====================================================
+                // 6. CHECK PAYMENT AMOUNT
+                // =====================================================
+
+                if (model.Amount <= 0)
+                {
+                    return BadRequest("Invalid Amount.");
+                }
+
+                if (model.Amount > remaining)
+                {
+                    return BadRequest(
+                        "Amount exceeds remaining balance."
+                    );
+                }
+
+
+                // =====================================================
+                // 7. CREATE PAYMENT
+                // =====================================================
+
+                var payment = new Payment
+                {
+                    FeeId = model.FeeId,
+
+                    Amount = model.Amount,
+
+                    PaymentType = model.Amount == remaining
+                        ? "Full"
+                        : "Partial",
+
+                    PaymentDate = DateTime.Now,
+
+                    // Student sends payment
+                    ParentStatus = "Sent",
+
+                    // Tutor has not received it yet
+                    TutorStatus = "Pending"
+                };
+
+
+                // =====================================================
+                // 8. SAVE PAYMENT
+                // =====================================================
+
+                db.Payments.Add(payment);
+
+                db.SaveChanges();
+
+
+                // =====================================================
+                // 9. SUCCESS RESPONSE
+                // =====================================================
+
+                return Ok(new
+                {
+                    Message = "Payment Sent Successfully.",
+
+                    FeeId = model.FeeId,
+
+                    Amount = model.Amount,
+
+                    PaymentType = payment.PaymentType
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An error occurred while sending payment.",
+                    error = ex.Message
+                });
+            }
+        }
         private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
         {
             // Earth radius in kilometers
