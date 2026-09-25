@@ -443,247 +443,8 @@ namespace HouseofTutorAPI.Controllers
             });
         }
 
-        //[Authorize]  // Hide only Normal accepted Classes 
-        //[HttpGet("search-by-time-location")]
-        //public async Task<IActionResult> SearchTutorByTimeAndLocation(double userLat, double userLng, int courseId)
-        //{
-        //    try
-        //    {
-        //        // =====================================================
-        //        // STEP 0: VERIFY STUDENT
-        //        // =====================================================
-        //        var userIdClaim = User.FindFirst(
-        //            System.Security.Claims.ClaimTypes.NameIdentifier);
-
-        //        if (userIdClaim == null)
-        //            return Unauthorized(new { message = "Invalid token." });
-
-        //        int userId = int.Parse(userIdClaim.Value);
-
-        //        var student = await db.Students
-        //            .FirstOrDefaultAsync(s => s.UserId == userId);
-
-        //        if (student == null)
-        //            return Unauthorized(new { message = "Student account not found." });
-
-        //        int studentId = student.StudentId;
-
-        //        // =====================================================
-        //        // STEP 1: LOAD STUDENT SCHEDULES
-        //        // =====================================================
-        //        var studentSchedules = await db.StudentSchedules
-        //            .Where(x => x.StudentId == studentId)
-        //            .ToListAsync();
-
-        //        if (studentSchedules.Count == 0)
-        //            return NotFound(new { message = "Student has no schedules defined." });
-
-        //        Console.WriteLine($"STUDENT SLOTS: {studentSchedules.Count}");
-
-        //        // =====================================================
-        //        // STEP 2: LOAD ACCEPTED REQUESTS
-        //        // =====================================================
-
-        //        var acceptedRequests = await db.Requests
-        //            .Where(r => r.Status == "Accepted")
-        //            .Select(r => new
-        //            {
-        //                r.TutorId,
-        //                r.Day,
-        //                r.Time,
-        //                r.RequestType,
-        //                r.ClassDate
-        //            })
-        //            .ToListAsync();
-
-        //        // =====================================================
-        //        // STEP 3: LOAD ALL TUTOR SCHEDULES
-        //        // =====================================================
-        //        var allTutorSchedules = await (
-        //            from sch in db.Schedules
-        //            join t in db.Tutors on sch.TutorId equals t.TutorId
-        //            join u in db.Users on t.UserId equals u.UserId
-        //            join tc in db.TutorCourses on t.TutorId equals tc.TutorId
-        //            where
-        //                tc.CourseId == courseId &&
-        //                t.Latitude != null &&
-        //                t.Longitude != null
-        //            select new
-        //            {
-        //                TutorId = t.TutorId,
-        //                Tutor = t,
-        //                User = u,
-        //                SlotDay = sch.Day,
-        //                SlotTime = sch.Time
-        //            }
-        //        ).ToListAsync();
-
-        //        Console.WriteLine($"TOTAL TUTOR SLOTS LOADED: {allTutorSchedules.Count}");
-
-        //        // =====================================================
-        //        // STEP 4: FIND COMMON SLOTS
-        //        // =====================================================
-
-        //        var tutorsWithCommonSlots = allTutorSchedules
-        //        .GroupBy(x => x.TutorId)
-        //        .Select(g =>
-        //        {
-        //            var tutorSlots = g.ToList();
-
-        //            var commonSlots = new List<TutorAvailableSlotDto>();
-
-        //            foreach (var ts in tutorSlots)
-        //            {
-        //                foreach (var ss in studentSchedules)
-        //                {
-        //                    if (NormalizeDay(ts.SlotDay) != NormalizeDay(ss.Day))
-        //                        continue;
-
-        //                    if (NormalizeTime(ts.SlotTime) != NormalizeTime(ss.Time))
-        //                        continue;
-
-        //                    var request = acceptedRequests.FirstOrDefault(r =>
-        //                            r.TutorId == ts.TutorId &&
-        //                            NormalizeDay(r.Day) == NormalizeDay(ts.SlotDay) &&
-        //                            NormalizeTime(r.Time) == NormalizeTime(ts.SlotTime));
-
-        //                    // ----------------------------------------------------
-        //                    // No accepted request
-        //                    // ----------------------------------------------------
-
-        //                    if (request == null)
-        //                    {
-        //                        commonSlots.Add(new TutorAvailableSlotDto
-        //                        {
-        //                            day = ts.SlotDay,
-        //                            time = ts.SlotTime,
-        //                            is_available = true,
-        //                            availability_message = "Available",
-        //                            request_type = "",
-        //                            class_date = null
-        //                        });
-
-        //                        continue;
-        //                    }
-
-        //                    // ----------------------------------------------------
-        //                    // NORMAL CLASS
-        //                    // Hide completely
-        //                    // ----------------------------------------------------
-
-        //                    if (string.Equals(request.RequestType, "Normal",
-        //                        StringComparison.OrdinalIgnoreCase))
-        //                    {
-        //                        continue;
-        //                    }
-
-        //                    // ----------------------------------------------------
-        //                    // RESCHEDULE / PRESCHEDULE
-        //                    // Show but unavailable
-        //                    // ----------------------------------------------------
-
-        //                    string message =
-        //                        $"Not Available on this {request.Day}. Available onward.";
-
-        //                    commonSlots.Add(new TutorAvailableSlotDto
-        //                    {
-        //                        day = ts.SlotDay,
-        //                        time = ts.SlotTime,
-        //                        is_available = false,
-        //                        availability_message = message,
-        //                        request_type = request.RequestType,
-        //                        class_date = request.ClassDate
-        //                    });
-        //                }
-        //            }
-
-        //            commonSlots = commonSlots
-        //                .GroupBy(x => new
-        //                {
-        //                    x.day,
-        //                    x.time
-        //                })
-        //                .Select(x => x.First())
-        //                .ToList();
-
-        //            return new
-        //            {
-        //                TutorId = g.Key,
-        //                Tutor = g.First().Tutor,
-        //                User = g.First().User,
-        //                CommonSlots = commonSlots
-        //            };
-        //        })
-        //        .Where(x => x.CommonSlots.Any())
-        //        .ToList();
-
-        //        // =====================================================
-        //        // STEP 5: GET RATINGS (single DB round-trip)
-        //        // =====================================================
-        //        var tutorRatings = await db.Feedbacks
-        //            .Where(f => f.FeedbackBy == "Student")
-        //            .GroupBy(f => f.TutorId)
-        //            .Select(g => new
-        //            {
-        //                TutorId = g.Key,
-        //                AverageRating = g.Average(x => x.Rating),
-        //                TotalReviews = g.Count()
-        //            })
-        //            .ToListAsync();
-
-        //        var ratingsLookup = tutorRatings.ToDictionary(r => r.TutorId);
-
-        //        // =====================================================
-        //        // STEP 6: DISTANCE FILTER + BUILD RESULT
-        //        // =====================================================
-        //        var result = tutorsWithCommonSlots
-        //            .Select(x =>
-        //            {
-        //                double distance = CalculateDistance(
-        //                    userLat, userLng,
-        //                    x.Tutor.Latitude ?? 0,
-        //                    x.Tutor.Longitude ?? 0);
-
-        //                double tutorRadius = (double)(x.Tutor.Radius ?? 0);
-
-        //                ratingsLookup.TryGetValue(x.TutorId, out var ratingInfo);
-
-        //                return new TutorSearchResultDto
-        //                {
-        //                    tutor_id = x.TutorId,
-        //                    tutor_name = x.User.FullName,
-        //                    location = x.Tutor.Location,
-        //                    distance = distance,
-        //                    tutor_radius = tutorRadius,
-        //                    average_rating = ratingInfo != null
-        //                        ? Math.Round((double)ratingInfo.AverageRating, 1)
-        //                        : 0,
-        //                    total_reviews = ratingInfo?.TotalReviews ?? 0,
-        //                    common_slots = x.CommonSlots
-        //                };
-        //            })
-        //            .Where(t => t.distance <= t.tutor_radius)
-        //            .OrderByDescending(t => t.average_rating)
-        //            .ThenByDescending(t => t.total_reviews)
-        //            .ThenBy(t => t.distance)
-        //            .ToList();
-
-        //        // =====================================================
-        //        // STEP 7: RESPONSE
-        //        // =====================================================
-        //        if (result.Count == 0)
-        //            return NotFound(new { message = "No tutors available in your area." });
-
-        //        return Ok(result);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, new { message = ex.Message });
-        //    }
-        //}
-
         [Authorize]
-        [HttpGet("search-by-time-location")]
+        [HttpGet("search-by-time-location-visiting-tutor")] // Search tutor and sort Also there is condition to search only VISITING tutor's
         public async Task<IActionResult> SearchTutorByTimeAndLocation( double userLat, double userLng, int courseId, string sortBy = "feedback")
         {
             try
@@ -703,7 +464,13 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
-                int userId = int.Parse(userIdClaim.Value);
+                if (!int.TryParse(userIdClaim.Value, out int userId))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Invalid user ID."
+                    });
+                }
 
                 var student = await db.Students
                     .FirstOrDefaultAsync(s => s.UserId == userId);
@@ -717,6 +484,7 @@ namespace HouseofTutorAPI.Controllers
                 }
 
                 int studentId = student.StudentId;
+
 
                 // =====================================================
                 // STEP 1: VALIDATE COURSE
@@ -732,6 +500,7 @@ namespace HouseofTutorAPI.Controllers
                         message = "Course not found."
                     });
                 }
+
 
                 // =====================================================
                 // STEP 2: NORMALIZE SORT
@@ -754,8 +523,25 @@ namespace HouseofTutorAPI.Controllers
                     sortBy = "feedback";
                 }
 
+
                 // =====================================================
-                // STEP 3: LOAD STUDENT SCHEDULES
+                // STEP 3: VALIDATE STUDENT LOCATION
+                // =====================================================
+
+                if (double.IsNaN(userLat) ||
+                    double.IsNaN(userLng) ||
+                    double.IsInfinity(userLat) ||
+                    double.IsInfinity(userLng))
+                {
+                    return BadRequest(new
+                    {
+                        message = "Invalid student location."
+                    });
+                }
+
+
+                // =====================================================
+                // STEP 4: LOAD STUDENT SCHEDULES
                 // =====================================================
 
                 var studentSchedules = await db.StudentSchedules
@@ -770,8 +556,9 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
+
                 // =====================================================
-                // STEP 4: LOAD ACCEPTED REQUESTS
+                // STEP 5: LOAD ACCEPTED REQUESTS
                 // =====================================================
 
                 var acceptedRequests = await db.Requests
@@ -786,11 +573,18 @@ namespace HouseofTutorAPI.Controllers
                     })
                     .ToListAsync();
 
+
                 // =====================================================
-                // STEP 5:
-                // LOAD TUTOR SCHEDULE + COURSE + RATE
+                // STEP 6:
+                // LOAD ONLY:
                 //
-                // HourlyRate comes from Tutor_Course_Rate
+                // 1. Selected Course
+                // 2. Visiting Tutor
+                // 3. Approved Tutor
+                // 4. Tutor has Latitude
+                // 5. Tutor has Longitude
+                //
+                // Radius is used later for distance checking.
                 // =====================================================
 
                 var allTutorSchedules =
@@ -816,10 +610,6 @@ namespace HouseofTutorAPI.Controllers
                                 CourseId = tc.CourseId
                             }
 
-                            // =================================================
-                            // JOIN Tutor_Course_Rate
-                            // =================================================
-
                         join tcr in db.TutorCourseRates
                             on new
                             {
@@ -833,9 +623,33 @@ namespace HouseofTutorAPI.Controllers
                             }
 
                         where
-                            tc.CourseId == courseId &&
-                            t.Latitude != null &&
-                            t.Longitude != null
+
+                            // =========================================
+                            // SELECTED COURSE
+                            // =========================================
+
+                            tc.CourseId == courseId
+
+                            // =========================================
+                            // ONLY VISITING TUTOR
+                            // Student goes to student's/tutor's place
+                            // depending on your Visiting flow
+                            // =========================================
+
+                            && t.TeachingMode == "Visiting"
+
+                            // =========================================
+                            // ONLY APPROVED TUTOR
+                            // =========================================
+
+                            && t.Status == "Approved"
+
+                            // =========================================
+                            // TUTOR MUST HAVE LOCATION
+                            // =========================================
+
+                            && t.Latitude != null
+                            && t.Longitude != null
 
                         select new
                         {
@@ -845,23 +659,23 @@ namespace HouseofTutorAPI.Controllers
 
                             User = u,
 
-                            // =================================================
+                            // =========================================
                             // COURSE INFORMATION
-                            // =================================================
+                            // =========================================
 
                             Institute = tc.Institute,
 
                             Grade = tc.Grade,
 
-                            // =================================================
-                            // HOURLY RATE FROM Tutor_Course_Rate
-                            // =================================================
+                            // =========================================
+                            // HOURLY RATE
+                            // =========================================
 
                             HourlyRate = tcr.HourlyRate,
 
-                            // =================================================
-                            // SCHEDULE
-                            // =================================================
+                            // =========================================
+                            // TUTOR SCHEDULE
+                            // =========================================
 
                             SlotDay = sch.Day,
 
@@ -870,11 +684,14 @@ namespace HouseofTutorAPI.Controllers
                     )
                     .ToListAsync();
 
+
                 Console.WriteLine(
-                    $"TOTAL TUTOR SLOTS LOADED: {allTutorSchedules.Count}");
+                    $"TOTAL APPROVED VISITING TUTOR SLOTS LOADED: " +
+                    $"{allTutorSchedules.Count}");
+
 
                 // =====================================================
-                // STEP 6: FIND COMMON SLOTS
+                // STEP 7: FIND COMMON SLOTS
                 // =====================================================
 
                 var tutorsWithCommonSlots = allTutorSchedules
@@ -886,13 +703,14 @@ namespace HouseofTutorAPI.Controllers
                         var commonSlots =
                             new List<TutorAvailableSlotDto>();
 
+
                         foreach (var ts in tutorSlots)
                         {
                             foreach (var ss in studentSchedules)
                             {
-                                // -----------------------------------------
+                                // =====================================
                                 // CHECK DAY
-                                // -----------------------------------------
+                                // =====================================
 
                                 if (NormalizeDay(ts.SlotDay) !=
                                     NormalizeDay(ss.Day))
@@ -900,9 +718,10 @@ namespace HouseofTutorAPI.Controllers
                                     continue;
                                 }
 
-                                // -----------------------------------------
+
+                                // =====================================
                                 // CHECK TIME
-                                // -----------------------------------------
+                                // =====================================
 
                                 if (NormalizeTime(ts.SlotTime) !=
                                     NormalizeTime(ss.Time))
@@ -910,9 +729,10 @@ namespace HouseofTutorAPI.Controllers
                                     continue;
                                 }
 
-                                // -----------------------------------------
+
+                                // =====================================
                                 // CHECK ACCEPTED REQUEST
-                                // -----------------------------------------
+                                // =====================================
 
                                 var request =
                                     acceptedRequests.FirstOrDefault(r =>
@@ -924,9 +744,10 @@ namespace HouseofTutorAPI.Controllers
                                         NormalizeTime(r.Time) ==
                                         NormalizeTime(ts.SlotTime));
 
-                                // -----------------------------------------
+
+                                // =====================================
                                 // NO ACCEPTED REQUEST
-                                // -----------------------------------------
+                                // =====================================
 
                                 if (request == null)
                                 {
@@ -934,6 +755,7 @@ namespace HouseofTutorAPI.Controllers
                                         new TutorAvailableSlotDto
                                         {
                                             day = ts.SlotDay,
+
                                             time = ts.SlotTime,
 
                                             is_available = true,
@@ -949,9 +771,10 @@ namespace HouseofTutorAPI.Controllers
                                     continue;
                                 }
 
-                                // -----------------------------------------
+
+                                // =====================================
                                 // NORMAL CLASS
-                                // -----------------------------------------
+                                // =====================================
 
                                 if (string.Equals(
                                     request.RequestType,
@@ -961,17 +784,21 @@ namespace HouseofTutorAPI.Controllers
                                     continue;
                                 }
 
-                                // -----------------------------------------
+
+                                // =====================================
                                 // RESCHEDULE / PRESCHEDULE
-                                // -----------------------------------------
+                                // =====================================
 
                                 string message =
-                                    $"Not Available on this {request.Day}. Available onward.";
+                                    $"Not Available on this {request.Day}. " +
+                                    $"Available onward.";
+
 
                                 commonSlots.Add(
                                     new TutorAvailableSlotDto
                                     {
                                         day = ts.SlotDay,
+
                                         time = ts.SlotTime,
 
                                         is_available = false,
@@ -988,9 +815,10 @@ namespace HouseofTutorAPI.Controllers
                             }
                         }
 
-                        // -----------------------------------------
+
+                        // =============================================
                         // REMOVE DUPLICATE SLOTS
-                        // -----------------------------------------
+                        // =============================================
 
                         commonSlots = commonSlots
                             .GroupBy(x => new
@@ -1001,7 +829,9 @@ namespace HouseofTutorAPI.Controllers
                             .Select(x => x.First())
                             .ToList();
 
+
                         var first = tutorSlots.First();
+
 
                         return new
                         {
@@ -1020,7 +850,7 @@ namespace HouseofTutorAPI.Controllers
                             Grade = first.Grade,
 
                             // =========================================
-                            // RATE FROM Tutor_Course_Rate
+                            // HOURLY RATE
                             // =========================================
 
                             HourlyRate = first.HourlyRate,
@@ -1035,12 +865,15 @@ namespace HouseofTutorAPI.Controllers
                     .Where(x => x.CommonSlots.Any())
                     .ToList();
 
+
                 // =====================================================
-                // STEP 7: GET FEEDBACK / RATINGS
+                // STEP 8: GET FEEDBACK / RATINGS
                 // =====================================================
 
                 var tutorRatings = await db.Feedbacks
-                    .Where(f => f.FeedbackBy == "Student")
+                    .Where(f =>
+                        f.FeedbackBy == "Student" &&
+                        f.CourseId == courseId)
                     .GroupBy(f => f.TutorId)
                     .Select(g => new
                     {
@@ -1054,17 +887,23 @@ namespace HouseofTutorAPI.Controllers
                     })
                     .ToListAsync();
 
+
                 var ratingsLookup =
                     tutorRatings.ToDictionary(
                         r => r.TutorId);
 
+
                 // =====================================================
-                // STEP 8: BUILD RESULT
+                // STEP 9: BUILD RESULT
                 // =====================================================
 
                 var result = tutorsWithCommonSlots
                     .Select(x =>
                     {
+                        // =============================================
+                        // CALCULATE DISTANCE
+                        // =============================================
+
                         double distance =
                             CalculateDistance(
                                 userLat,
@@ -1072,12 +911,23 @@ namespace HouseofTutorAPI.Controllers
                                 x.Tutor.Latitude ?? 0,
                                 x.Tutor.Longitude ?? 0);
 
+
+                        // =============================================
+                        // GET TUTOR RADIUS
+                        // =============================================
+
                         double tutorRadius =
                             (double)(x.Tutor.Radius ?? 0);
+
+
+                        // =============================================
+                        // GET RATING
+                        // =============================================
 
                         ratingsLookup.TryGetValue(
                             x.TutorId,
                             out var ratingInfo);
+
 
                         double averageRating =
                             ratingInfo != null
@@ -1086,8 +936,14 @@ namespace HouseofTutorAPI.Controllers
                                     1)
                                 : 0;
 
+
                         int totalReviews =
                             ratingInfo?.TotalReviews ?? 0;
+
+
+                        // =============================================
+                        // RETURN TUTOR
+                        // =============================================
 
                         return new TutorSearchResultDto
                         {
@@ -1104,8 +960,16 @@ namespace HouseofTutorAPI.Controllers
                             location =
                                 x.Tutor.Location,
 
+                            // =========================================
+                            // DISTANCE
+                            // =========================================
+
                             distance =
                                 Math.Round(distance, 2),
+
+                            // =========================================
+                            // TUTOR RADIUS
+                            // =========================================
 
                             tutor_radius =
                                 tutorRadius,
@@ -1122,7 +986,6 @@ namespace HouseofTutorAPI.Controllers
 
                             // =========================================
                             // HOURLY RATE
-                            // FROM Tutor_Course_Rate
                             // =========================================
 
                             hourly_rate =
@@ -1139,26 +1002,34 @@ namespace HouseofTutorAPI.Controllers
                                 totalReviews,
 
                             // =========================================
-                            // SLOTS
+                            // COMMON SLOTS
                             // =========================================
 
                             common_slots =
                                 x.CommonSlots
                         };
                     })
+
+                    // =================================================
+                    // IMPORTANT:
+                    // Only tutors inside their radius are returned.
+                    // =================================================
+
                     .Where(t =>
                         t.distance <= t.tutor_radius)
+
                     .ToList();
 
+
                 // =====================================================
-                // STEP 9: SORT
+                // STEP 10: SORT
                 // =====================================================
 
                 switch (sortBy)
                 {
-                    // ---------------------------------------------
+                    // =================================================
                     // INSTITUTE A-Z
-                    // ---------------------------------------------
+                    // =================================================
 
                     case "institute":
 
@@ -1173,9 +1044,10 @@ namespace HouseofTutorAPI.Controllers
 
                         break;
 
-                    // ---------------------------------------------
+
+                    // =================================================
                     // FEEDBACK HIGH TO LOW
-                    // ---------------------------------------------
+                    // =================================================
 
                     case "feedback":
 
@@ -1190,9 +1062,10 @@ namespace HouseofTutorAPI.Controllers
 
                         break;
 
-                    // ---------------------------------------------
-                    // GRADE A TO F
-                    // ---------------------------------------------
+
+                    // =================================================
+                    // GRADE
+                    // =================================================
 
                     case "grade":
 
@@ -1207,9 +1080,10 @@ namespace HouseofTutorAPI.Controllers
 
                         break;
 
-                    // ---------------------------------------------
+
+                    // =================================================
                     // FEE LOW TO HIGH
-                    // ---------------------------------------------
+                    // =================================================
 
                     case "fee":
 
@@ -1223,6 +1097,11 @@ namespace HouseofTutorAPI.Controllers
                             .ToList();
 
                         break;
+
+
+                    // =================================================
+                    // DEFAULT = FEEDBACK
+                    // =================================================
 
                     default:
 
@@ -1238,8 +1117,9 @@ namespace HouseofTutorAPI.Controllers
                         break;
                 }
 
+
                 // =====================================================
-                // STEP 10: NO RESULT
+                // STEP 11: NO RESULT
                 // =====================================================
 
                 if (result.Count == 0)
@@ -1247,12 +1127,13 @@ namespace HouseofTutorAPI.Controllers
                     return NotFound(new
                     {
                         message =
-                            "No tutors available in your area."
+                            "No approved Visiting tutors available in your area for this course."
                     });
                 }
 
+
                 // =====================================================
-                // STEP 11: RESPONSE
+                // STEP 12: FINAL RESPONSE
                 // =====================================================
 
                 return Ok(new
@@ -1260,6 +1141,8 @@ namespace HouseofTutorAPI.Controllers
                     sort_by = sortBy,
 
                     course_id = courseId,
+
+                    teaching_mode = "Visiting",
 
                     total_tutors = result.Count,
 
@@ -1269,7 +1152,7 @@ namespace HouseofTutorAPI.Controllers
             catch (Exception ex)
             {
                 Console.WriteLine(
-                    "SEARCH TUTOR ERROR: " +
+                    "SEARCH VISITING TUTOR ERROR: " +
                     ex.ToString());
 
                 return StatusCode(
@@ -1277,7 +1160,7 @@ namespace HouseofTutorAPI.Controllers
                     new
                     {
                         message =
-                            "An error occurred while searching tutors.",
+                            "An error occurred while searching Visiting tutors.",
 
                         error =
                             ex.Message
@@ -1285,287 +1168,668 @@ namespace HouseofTutorAPI.Controllers
             }
         }
 
-        //[Authorize] // Request to Tutor for normal class and can send request for re and pre-scheduled tutor
-        //[HttpPost("create-request")] 
-        //public async Task<IActionResult> CreateRequest([FromBody] CreateRequestDto dto)
-        //{
-        //    try
-        //    {
-        //        Console.WriteLine($"DAY: {dto.day}, TIME: {dto.time}");
+        [Authorize]
+        [HttpGet("search-non-visiting-tutors")]
+        public async Task<IActionResult> SearchNonVisitingTutors( int courseId, string sortBy = "feedback")
+        {
+            try
+            {
+                // =====================================================
+                // STEP 0: VERIFY STUDENT
+                // =====================================================
 
-        //        // -----------------------------------------
-        //        // 1. Validate Day and Time
-        //        // -----------------------------------------
-        //        if (string.IsNullOrWhiteSpace(dto.day) ||
-        //            string.IsNullOrWhiteSpace(dto.time))
-        //        {
-        //            return BadRequest(new
-        //            {
-        //                message = "Day or time missing"
-        //            });
-        //        }
+                var userIdClaim = User.FindFirst(
+                    System.Security.Claims.ClaimTypes.NameIdentifier);
 
-        //        // -----------------------------------------
-        //        // 2. Validate Learning Mode
-        //        // -----------------------------------------
-        //        if (string.IsNullOrWhiteSpace(dto.learning_mode))
-        //        {
-        //            return BadRequest(new
-        //            {
-        //                message = "Learning mode is required."
-        //            });
-        //        }
+                if (userIdClaim == null)
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Invalid token."
+                    });
+                }
 
-        //        if (dto.learning_mode == "SpecificTime")
-        //        {
-        //            if (!dto.learning_duration.HasValue ||
-        //                dto.learning_duration <= 0)
-        //            {
-        //                return BadRequest(new
-        //                {
-        //                    message = "Learning duration is required for Specific Time."
-        //                });
-        //            }
+                if (!int.TryParse(userIdClaim.Value, out int userId))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Invalid user ID."
+                    });
+                }
 
-        //            if (string.IsNullOrWhiteSpace(dto.learning_duration_unit))
-        //            {
-        //                return BadRequest(new
-        //                {
-        //                    message = "Learning duration unit is required."
-        //                });
-        //            }
-        //        }
+                var student = await db.Students
+                    .FirstOrDefaultAsync(s => s.UserId == userId);
 
-        //        // -----------------------------------------
-        //        // 3. Get Logged-in Student
-        //        // -----------------------------------------
-        //        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (student == null)
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Student account not found."
+                    });
+                }
 
-        //        if (string.IsNullOrWhiteSpace(userIdClaim))
-        //        {
-        //            return Unauthorized(new
-        //            {
-        //                message = "User not authenticated."
-        //            });
-        //        }
+                int studentId = student.StudentId;
 
-        //        var userId = int.Parse(userIdClaim);
 
-        //        var student = await db.Students
-        //            .FirstOrDefaultAsync(s => s.UserId == userId);
+                // =====================================================
+                // STEP 1: VALIDATE COURSE
+                // =====================================================
 
-        //        if (student == null)
-        //        {
-        //            return NotFound(new
-        //            {
-        //                message = "Student not found"
-        //            });
-        //        }
+                var courseExists = await db.Courses
+                    .AnyAsync(c => c.CourseId == courseId);
 
-        //        // -----------------------------------------
-        //        // 4. Check Tutor
-        //        // -----------------------------------------
-        //        var tutor = await db.Tutors
-        //            .FirstOrDefaultAsync(t => t.TutorId == dto.tutor_id);
+                if (!courseExists)
+                {
+                    return NotFound(new
+                    {
+                        message = "Course not found."
+                    });
+                }
 
-        //        if (tutor == null)
-        //        {
-        //            return NotFound(new
-        //            {
-        //                message = "Tutor not found."
-        //            });
-        //        }
 
-        //        // -----------------------------------------
-        //        // 5. Check Tutor's Existing
-        //        //    Reschedule / Preschedule Requests
-        //        // -----------------------------------------
-        //        var occupiedRequest = await db.Requests
-        //            .Where(r =>
-        //                r.TutorId == dto.tutor_id &&
-        //                r.Day == dto.day &&
-        //                r.Time == $"{dto.day}, {dto.time}" &&
-        //                (r.RequestType == "Reschedule" ||
-        //                 r.RequestType == "Preschedule") &&
-        //                (r.Status == "Pending" ||
-        //                 r.Status == "Approved" ||
-        //                 r.Status == "Accepted"))
-        //            .OrderBy(r => r.ClassDate)
-        //            .FirstOrDefaultAsync();
+                // =====================================================
+                // STEP 2: NORMALIZE SORT
+                // =====================================================
 
-        //        // -----------------------------------------
-        //        // 6. Find Next Available Day
-        //        // -----------------------------------------
-        //        string? nextAvailableDay = null;
+                sortBy = (sortBy ?? "feedback")
+                    .Trim()
+                    .ToLower();
 
-        //        if (occupiedRequest != null)
-        //        {
-        //            var days = new[]
-        //            {
-        //        "Monday",
-        //        "Tuesday",
-        //        "Wednesday",
-        //        "Thursday",
-        //        "Friday",
-        //        "Saturday",
-        //        "Sunday"
-        //    };
+                var validSortOptions = new[]
+                {
+                    "institute",
+                    "feedback",
+                    "grade",
+                    "fee"
+                };
 
-        //            int selectedDayIndex = Array.FindIndex(
-        //                days,
-        //                d => d.Equals(dto.day, StringComparison.OrdinalIgnoreCase)
-        //            );
+                if (!validSortOptions.Contains(sortBy))
+                {
+                    sortBy = "feedback";
+                }
 
-        //            if (selectedDayIndex >= 0)
-        //            {
-        //                // Check next 7 days
-        //                for (int i = 1; i <= 7; i++)
-        //                {
-        //                    string checkingDay =
-        //                        days[(selectedDayIndex + i) % 7];
 
-        //                    // Check whether tutor has a regular schedule
-        //                    var hasSchedule = await db.Schedules
-        //                        .AnyAsync(s =>
-        //                            s.TutorId == dto.tutor_id &&
-        //                            s.Day == checkingDay &&
-        //                            s.Time == dto.time);
+                // =====================================================
+                // STEP 3: LOAD STUDENT SCHEDULES
+                // =====================================================
 
-        //                    // Check whether tutor is already occupied
-        //                    var hasConflict = await db.Requests
-        //                        .AnyAsync(r =>
-        //                            r.TutorId == dto.tutor_id &&
-        //                            r.Day == checkingDay &&
-        //                            r.Time == $"{checkingDay}, {dto.time}" &&
-        //                            (r.RequestType == "Reschedule" ||
-        //                             r.RequestType == "Preschedule") &&
-        //                            (r.Status == "Pending" ||
-        //                             r.Status == "Approved" ||
-        //                             r.Status == "Accepted"));
+                var studentSchedules = await db.StudentSchedules
+                    .Where(x => x.StudentId == studentId)
+                    .ToListAsync();
 
-        //                    if (hasSchedule && !hasConflict)
-        //                    {
-        //                        nextAvailableDay = checkingDay;
-        //                        break;
-        //                    }
-        //                }
-        //            }
-        //        }
+                if (studentSchedules.Count == 0)
+                {
+                    return NotFound(new
+                    {
+                        message = "Student has no schedules defined."
+                    });
+                }
 
-        //        // -----------------------------------------
-        //        // 7. Create Normal Request
-        //        // -----------------------------------------
-        //        string fullTime = $"{dto.day}, {dto.time}";
 
-        //        var request = new Request
-        //        {
-        //            StudentId = student.StudentId,
-        //            TutorId = dto.tutor_id,
-        //            CourseId = dto.course_id,
+                // =====================================================
+                // STEP 4: LOAD ACCEPTED REQUESTS
+                // =====================================================
 
-        //            Time = fullTime,
+                var acceptedRequests = await db.Requests
+                    .Where(r => r.Status == "Accepted")
+                    .Select(r => new
+                    {
+                        r.TutorId,
+                        r.Day,
+                        r.Time,
+                        r.RequestType,
+                        r.ClassDate
+                    })
+                    .ToListAsync();
 
-        //            RequestDate = DateTime.Now,
 
-        //            Status = "Pending",
+                // =====================================================
+                // STEP 5:
+                // LOAD ONLY NON-VISITING + APPROVED TUTORS
+                //
+                // IMPORTANT:
+                // NO Latitude
+                // NO Longitude
+                // NO Radius
+                // NO Distance Calculation
+                //
+                // Student will visit the tutor's place.
+                // =====================================================
 
-        //            ClassDate = DateOnly.FromDateTime(DateTime.Now),
+                var allTutorSchedules =
+                    await
+                    (
+                        from sch in db.Schedules
 
-        //            Day = dto.day,
+                        join t in db.Tutors
+                            on sch.TutorId equals t.TutorId
 
-        //            RequestType = "Normal",
+                        join u in db.Users
+                            on t.UserId equals u.UserId
 
-        //            ParentRequestId = null,
+                        join tc in db.TutorCourses
+                            on new
+                            {
+                                TutorId = t.TutorId,
+                                CourseId = courseId
+                            }
+                            equals new
+                            {
+                                TutorId = tc.TutorId,
+                                CourseId = tc.CourseId
+                            }
 
-        //            LearningMode = dto.learning_mode,
+                        join tcr in db.TutorCourseRates
+                            on new
+                            {
+                                TutorId = t.TutorId,
+                                CourseId = courseId
+                            }
+                            equals new
+                            {
+                                TutorId = tcr.TutorId,
+                                CourseId = tcr.CourseId
+                            }
 
-        //            LearningDuration = dto.learning_duration,
+                        where
 
-        //            LearningDurationUnit = dto.learning_duration_unit
-        //        };
+                            // =========================================
+                            // SELECTED COURSE
+                            // =========================================
 
-        //        db.Requests.Add(request);
+                            tc.CourseId == courseId
 
-        //        await db.SaveChangesAsync();
+                            // =========================================
+                            // ONLY NON-VISITING TUTOR
+                            // =========================================
 
-        //        // -----------------------------------------
-        //        // 8. Return Response
-        //        // -----------------------------------------
-        //        if (occupiedRequest != null)
-        //        {
-        //            string reason = occupiedRequest.RequestType == "Reschedule"
-        //                ? "Reschedule class"
-        //                : "Preschedule class";
+                            && t.TeachingMode == "Non-Visiting"
 
-        //            string message;
+                            // =========================================
+                            // ONLY APPROVED TUTOR
+                            // =========================================
 
-        //            if (!string.IsNullOrWhiteSpace(nextAvailableDay))
-        //            {
-        //                message =
-        //                    $"This tutor is unavailable on {dto.day} at {dto.time} " +
-        //                    $"due to a {reason}. " +
-        //                    $"Tutor is available next {nextAvailableDay}.";
-        //            }
-        //            else
-        //            {
-        //                message =
-        //                    $"This tutor is unavailable on {dto.day} at {dto.time} " +
-        //                    $"due to a {reason}.";
-        //            }
+                            && t.Status == "Approved"
 
-        //            return Ok(new
-        //            {
-        //                message = "Class request created successfully.",
-        //                note = message,
+                        select new
+                        {
+                            TutorId = t.TutorId,
 
-        //                request_id = request.RequestId,
-        //                request_type = request.RequestType,
+                            Tutor = t,
 
-        //                tutor_unavailable = true,
-        //                unavailable_reason = reason,
+                            User = u,
 
-        //                requested_day = dto.day,
-        //                requested_time = dto.time,
+                            // =========================================
+                            // COURSE INFORMATION
+                            // =========================================
 
-        //                next_available_day = nextAvailableDay,
+                            Institute = tc.Institute,
 
-        //                learning_mode = request.LearningMode,
-        //                learning_duration = request.LearningDuration,
-        //                learning_duration_unit = request.LearningDurationUnit
-        //            });
-        //        }
+                            Grade = tc.Grade,
 
-        //        // No conflict
-        //        return Ok(new
-        //        {
-        //            message = "Class request created successfully",
+                            // =========================================
+                            // HOURLY RATE
+                            // =========================================
 
-        //            note = (string?)null,
+                            HourlyRate = tcr.HourlyRate,
 
-        //            request_id = request.RequestId,
-        //            request_type = request.RequestType,
+                            // =========================================
+                            // TUTOR SCHEDULE
+                            // =========================================
 
-        //            tutor_unavailable = false,
-        //            unavailable_reason = (string?)null,
+                            SlotDay = sch.Day,
 
-        //            requested_day = dto.day,
-        //            requested_time = dto.time,
+                            SlotTime = sch.Time
+                        }
+                    )
+                    .ToListAsync();
 
-        //            next_available_day = (string?)null,
 
-        //            learning_mode = request.LearningMode,
-        //            learning_duration = request.LearningDuration,
-        //            learning_duration_unit = request.LearningDurationUnit
-        //        });
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, new
-        //        {
-        //            message = ex.Message
-        //        });
-        //    }
-        //}
+                Console.WriteLine(
+                    $"TOTAL APPROVED NON-VISITING TUTOR SLOTS LOADED: " +
+                    $"{allTutorSchedules.Count}");
+
+
+                // =====================================================
+                // STEP 6: FIND COMMON SLOTS
+                // =====================================================
+
+                var tutorsWithCommonSlots = allTutorSchedules
+                    .GroupBy(x => x.TutorId)
+                    .Select(g =>
+                    {
+                        var tutorSlots = g.ToList();
+
+                        var commonSlots =
+                            new List<TutorAvailableSlotDto>();
+
+
+                        foreach (var ts in tutorSlots)
+                        {
+                            foreach (var ss in studentSchedules)
+                            {
+                                // =====================================
+                                // CHECK DAY
+                                // =====================================
+
+                                if (NormalizeDay(ts.SlotDay) !=
+                                    NormalizeDay(ss.Day))
+                                {
+                                    continue;
+                                }
+
+
+                                // =====================================
+                                // CHECK TIME
+                                // =====================================
+
+                                if (NormalizeTime(ts.SlotTime) !=
+                                    NormalizeTime(ss.Time))
+                                {
+                                    continue;
+                                }
+
+
+                                // =====================================
+                                // CHECK ACCEPTED REQUEST
+                                // =====================================
+
+                                var request =
+                                    acceptedRequests.FirstOrDefault(r =>
+                                        r.TutorId == ts.TutorId &&
+
+                                        NormalizeDay(r.Day) ==
+                                        NormalizeDay(ts.SlotDay) &&
+
+                                        NormalizeTime(r.Time) ==
+                                        NormalizeTime(ts.SlotTime));
+
+
+                                // =====================================
+                                // NO ACCEPTED REQUEST
+                                // =====================================
+
+                                if (request == null)
+                                {
+                                    commonSlots.Add(
+                                        new TutorAvailableSlotDto
+                                        {
+                                            day = ts.SlotDay,
+
+                                            time = ts.SlotTime,
+
+                                            is_available = true,
+
+                                            availability_message =
+                                                "Available",
+
+                                            request_type = "",
+
+                                            class_date = null
+                                        });
+
+                                    continue;
+                                }
+
+
+                                // =====================================
+                                // NORMAL CLASS
+                                // =====================================
+
+                                if (string.Equals(
+                                    request.RequestType,
+                                    "Normal",
+                                    StringComparison.OrdinalIgnoreCase))
+                                {
+                                    continue;
+                                }
+
+
+                                // =====================================
+                                // RESCHEDULE / PRESCHEDULE
+                                // =====================================
+
+                                string message =
+                                    $"Not Available on this {request.Day}. " +
+                                    $"Available onward.";
+
+
+                                commonSlots.Add(
+                                    new TutorAvailableSlotDto
+                                    {
+                                        day = ts.SlotDay,
+
+                                        time = ts.SlotTime,
+
+                                        is_available = false,
+
+                                        availability_message =
+                                            message,
+
+                                        request_type =
+                                            request.RequestType,
+
+                                        class_date =
+                                            request.ClassDate
+                                    });
+                            }
+                        }
+
+
+                        // =============================================
+                        // REMOVE DUPLICATE SLOTS
+                        // =============================================
+
+                        commonSlots = commonSlots
+                            .GroupBy(x => new
+                            {
+                                x.day,
+                                x.time
+                            })
+                            .Select(x => x.First())
+                            .ToList();
+
+
+                        var first = tutorSlots.First();
+
+
+                        return new
+                        {
+                            TutorId = g.Key,
+
+                            Tutor = first.Tutor,
+
+                            User = first.User,
+
+                            // =========================================
+                            // COURSE INFORMATION
+                            // =========================================
+
+                            Institute = first.Institute,
+
+                            Grade = first.Grade,
+
+                            // =========================================
+                            // HOURLY RATE
+                            // =========================================
+
+                            HourlyRate = first.HourlyRate,
+
+                            // =========================================
+                            // COMMON SLOTS
+                            // =========================================
+
+                            CommonSlots = commonSlots
+                        };
+                    })
+                    .Where(x => x.CommonSlots.Any())
+                    .ToList();
+
+
+                // =====================================================
+                // STEP 7: GET FEEDBACK / RATINGS
+                // =====================================================
+
+                var tutorRatings = await db.Feedbacks
+                    .Where(f =>
+                        f.FeedbackBy == "Student" &&
+                        f.CourseId == courseId)
+                    .GroupBy(f => f.TutorId)
+                    .Select(g => new
+                    {
+                        TutorId = g.Key,
+
+                        AverageRating =
+                            g.Average(x => x.Rating),
+
+                        TotalReviews =
+                            g.Count()
+                    })
+                    .ToListAsync();
+
+
+                var ratingsLookup =
+                    tutorRatings.ToDictionary(
+                        r => r.TutorId);
+
+
+                // =====================================================
+                // STEP 8: BUILD RESULT
+                //
+                // IMPORTANT:
+                // There is NO distance calculation here.
+                // There is NO radius calculation here.
+                // =====================================================
+
+                var result = tutorsWithCommonSlots
+                    .Select(x =>
+                    {
+                        // =============================================
+                        // GET RATING
+                        // =============================================
+
+                        ratingsLookup.TryGetValue(
+                            x.TutorId,
+                            out var ratingInfo);
+
+
+                        double averageRating =
+                            ratingInfo != null
+                                ? Math.Round(
+                                    (double)ratingInfo.AverageRating,
+                                    1)
+                                : 0;
+
+
+                        int totalReviews =
+                            ratingInfo?.TotalReviews ?? 0;
+
+
+                        // =============================================
+                        // RETURN TUTOR
+                        // =============================================
+
+                        return new NonVisitingTutorSearchResultDto
+                        {
+                            // =========================================
+                            // BASIC TUTOR INFORMATION
+                            // =========================================
+
+                            tutor_id =
+                                x.TutorId,
+
+                            tutor_name =
+                                x.User.FullName,
+
+                            location =
+                                x.Tutor.Location,
+
+                            qualification =
+                                x.Tutor.Qualification,
+
+                            experience =
+                                x.Tutor.Experience,
+
+                            teaching_mode =
+                                x.Tutor.TeachingMode,
+
+                            // =========================================
+                            // COURSE INFORMATION
+                            // =========================================
+
+                            course_id =
+                                courseId,
+
+                            institute =
+                                x.Institute,
+
+                            grade =
+                                x.Grade,
+
+                            // =========================================
+                            // HOURLY RATE
+                            // =========================================
+
+                            hourly_rate =
+                                x.HourlyRate,
+
+                            // =========================================
+                            // FEEDBACK
+                            // =========================================
+
+                            average_rating =
+                                averageRating,
+
+                            total_reviews =
+                                totalReviews,
+
+                            // =========================================
+                            // COMMON SLOTS
+                            // =========================================
+
+                            common_slots =
+                                x.CommonSlots
+                        };
+                    })
+                    .ToList();
+
+
+                // =====================================================
+                // STEP 9: SORT
+                // =====================================================
+
+                switch (sortBy)
+                {
+                    // =================================================
+                    // INSTITUTE A-Z
+                    // =================================================
+
+                    case "institute":
+
+                        result = result
+                            .OrderBy(x =>
+                                x.institute ?? "")
+                            .ThenByDescending(x =>
+                                x.average_rating)
+                            .ToList();
+
+                        break;
+
+
+                    // =================================================
+                    // FEEDBACK HIGH TO LOW
+                    // =================================================
+
+                    case "feedback":
+
+                        result = result
+                            .OrderByDescending(x =>
+                                x.average_rating)
+                            .ThenByDescending(x =>
+                                x.total_reviews)
+                            .ToList();
+
+                        break;
+
+
+                    // =================================================
+                    // GRADE
+                    // =================================================
+
+                    case "grade":
+
+                        result = result
+                            .OrderBy(x =>
+                                GetGradeOrder(x.grade))
+                            .ThenByDescending(x =>
+                                x.average_rating)
+                            .ToList();
+
+                        break;
+
+
+                    // =================================================
+                    // FEE LOW TO HIGH
+                    // =================================================
+
+                    case "fee":
+
+                        result = result
+                            .OrderBy(x =>
+                                x.hourly_rate)
+                            .ThenByDescending(x =>
+                                x.average_rating)
+                            .ToList();
+
+                        break;
+
+
+                    // =================================================
+                    // DEFAULT = FEEDBACK
+                    // =================================================
+
+                    default:
+
+                        result = result
+                            .OrderByDescending(x =>
+                                x.average_rating)
+                            .ThenByDescending(x =>
+                                x.total_reviews)
+                            .ToList();
+
+                        break;
+                }
+
+
+                // =====================================================
+                // STEP 10: NO RESULT
+                // =====================================================
+
+                if (result.Count == 0)
+                {
+                    return NotFound(new
+                    {
+                        message =
+                            "No approved Non-Visiting tutors available for this course."
+                    });
+                }
+
+
+                // =====================================================
+                // STEP 11: FINAL RESPONSE
+                // =====================================================
+
+                return Ok(new
+                {
+                    sort_by = sortBy,
+
+                    course_id = courseId,
+
+                    teaching_mode = "Non-Visiting",
+
+                    total_tutors = result.Count,
+
+                    tutors = result
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    "SEARCH NON-VISITING TUTOR ERROR: " +
+                    ex.ToString());
+
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        message =
+                            "An error occurred while searching Non-Visiting tutors.",
+
+                        error =
+                            ex.Message
+                    });
+            }
+        }
 
         [Authorize]
         [HttpPost("create-request")] //Request multiple tutor
@@ -3648,19 +3912,6 @@ namespace HouseofTutorAPI.Controllers
 
         public string? learning_duration_unit { get; set; }
     }
-    ////Student request tutor for class
-    //public class CreateRequestDto
-    //{
-    //    public int tutor_id { get; set; }
-    //    public int course_id { get; set; }
-    //    public string day { get; set; }
-    //    public string time { get; set; }
-    //    public DateOnly class_date { get; set; }
-    //    // New Fields
-    //    public string learning_mode { get; set; }              // FullTime / SpecificTime
-    //    public int? learning_duration { get; set; }            // e.g. 2
-    //    public string? learning_duration_unit { get; set; }    // Days / Weeks / Months
-    //}
     public class StudentSaveScheduleDto
     {
         public string? availabilityType { get; set; }
@@ -3742,5 +3993,36 @@ namespace HouseofTutorAPI.Controllers
         public string description { get; set; }
 
         public IFormFile file { get; set; }
+    }
+
+    //Non-Visiting Tutor Search
+    public class NonVisitingTutorSearchResultDto
+    {
+        public int tutor_id { get; set; }
+
+        public string? tutor_name { get; set; }
+
+        public string? location { get; set; }
+
+        public string? qualification { get; set; }
+
+        public int? experience { get; set; }
+
+        public string? teaching_mode { get; set; }
+
+        public int course_id { get; set; }
+
+        public string? institute { get; set; }
+
+        public string? grade { get; set; }
+
+        public decimal hourly_rate { get; set; }
+
+        public double average_rating { get; set; }
+
+        public int total_reviews { get; set; }
+
+        public List<TutorAvailableSlotDto> common_slots { get; set; }
+            = new List<TutorAvailableSlotDto>();
     }
 }

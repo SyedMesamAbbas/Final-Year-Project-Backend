@@ -488,7 +488,7 @@ namespace HouseofTutorAPI.Controllers
                         join tutorUser in db.Users
                             on tutor.UserId equals tutorUser.UserId
 
-                        where fee.StudentId == student.StudentId
+                        where fee.StudentId == student.StudentId && student.FeeResponsibility == "ByParent"
 
                         select new
                         {
