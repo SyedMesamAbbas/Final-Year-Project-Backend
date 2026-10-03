@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
+using System.Security.Claims;
 
 namespace HouseofTutorAPI.Controllers
 {
@@ -1072,6 +1073,360 @@ namespace HouseofTutorAPI.Controllers
                 });
             }
         }
+
+        [Authorize]
+        [HttpPost("add-lt-room")]
+        public async Task<IActionResult> AddLTRoom([FromBody] AddLTRoomRequest model)
+        {
+            try
+            {
+                // ============================================================
+                // STEP 1: VERIFY ADMIN
+                // ============================================================
+
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "User ID not found."
+                    });
+                }
+
+                if (!int.TryParse(userIdClaim, out int userId))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Invalid User ID."
+                    });
+                }
+
+                var admin = await db.Users
+                    .FirstOrDefaultAsync(u =>
+                        u.UserId == userId &&
+                        u.Role == "Admin");
+
+                if (admin == null)
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Only Admin can add LT Room."
+                    });
+                }
+
+
+                // ============================================================
+                // STEP 2: VALIDATE ROOM DATA
+                // ============================================================
+
+                if (model == null)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Room data is required."
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(model.RoomName))
+                {
+                    return BadRequest(new
+                    {
+                        message = "Room name is required."
+                    });
+                }
+
+                if (model.Capacity <= 0)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Capacity must be greater than 0."
+                    });
+                }
+
+
+                // ============================================================
+                // STEP 3: CHECK DUPLICATE ROOM NAME
+                // ============================================================
+
+                var existingRoom = await db.LtRooms
+                    .FirstOrDefaultAsync(r =>
+                        r.RoomName.ToLower() ==
+                        model.RoomName.Trim().ToLower());
+
+                if (existingRoom != null)
+                {
+                    return BadRequest(new
+                    {
+                        message = "An LT Room with this name already exists."
+                    });
+                }
+
+
+                // ============================================================
+                // STEP 4: VALIDATE SCHEDULES
+                // ============================================================
+
+                if (model.Schedules == null ||
+                    model.Schedules.Count == 0)
+                {
+                    return BadRequest(new
+                    {
+                        message = "At least one schedule is required."
+                    });
+                }
+
+                string[] validDays =
+                {
+                    "Monday",
+                    "Tuesday",
+                    "Wednesday",
+                    "Thursday",
+                    "Friday",
+                    "Saturday",
+                    "Sunday"
+                };
+
+                foreach (var schedule in model.Schedules)
+                {
+                    if (string.IsNullOrWhiteSpace(schedule.Day))
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Schedule day is required."
+                        });
+                    }
+
+                    if (!validDays.Contains(
+                        schedule.Day.Trim(),
+                        StringComparer.OrdinalIgnoreCase))
+                    {
+                        return BadRequest(new
+                        {
+                            message =
+                                $"Invalid day: {schedule.Day}. " +
+                                "Use Monday, Tuesday, Wednesday, Thursday, Friday, Saturday or Sunday."
+                        });
+                    }
+
+                    if (string.IsNullOrWhiteSpace(schedule.Time))
+                    {
+                        return BadRequest(new
+                        {
+                            message = $"Time is required for {schedule.Day}."
+                        });
+                    }
+
+                    if (schedule.StartDate.HasValue &&
+                        schedule.EndDate.HasValue &&
+                        schedule.StartDate.Value >
+                        schedule.EndDate.Value)
+                    {
+                        return BadRequest(new
+                        {
+                            message =
+                                $"Start date cannot be greater than end date for {schedule.Day}."
+                        });
+                    }
+                }
+
+
+                // ============================================================
+                // STEP 5: CREATE LT ROOM
+                // ============================================================
+
+                var room = new LtRoom
+                {
+                    RoomName = model.RoomName.Trim(),
+                    Capacity = model.Capacity,
+                    Status = "Active",
+                    CreatedDate = DateTime.Now
+                };
+
+                db.LtRooms.Add(room);
+
+                await db.SaveChangesAsync();
+
+
+                // ============================================================
+                // STEP 6: CREATE LT ROOM SCHEDULES
+                // ============================================================
+
+                var schedules = new List<LtRoomSchedule>();
+
+                foreach (var schedule in model.Schedules)
+                {
+                    var roomSchedule = new LtRoomSchedule
+                    {
+                        LtRoomId = room.LtRoomId,
+
+                        Day = schedule.Day.Trim(),
+
+                        Time = schedule.Time.Trim(),
+
+                        StartDate = schedule.StartDate.HasValue
+                            ? schedule.StartDate.Value
+                            : null,
+
+                        EndDate = schedule.EndDate.HasValue
+                            ? schedule.EndDate.Value
+                            : null,
+
+                        Status = "Available",
+
+                        CreatedDate = DateTime.Now
+                    };
+
+                    schedules.Add(roomSchedule);
+                }
+
+                db.LtRoomSchedules.AddRange(schedules);
+
+                await db.SaveChangesAsync();
+
+
+                // ============================================================
+                // STEP 7: RETURN CREATED ROOM + SCHEDULE
+                // ============================================================
+
+                return Ok(new
+                {
+                    message = "LT Room and schedule added successfully.",
+
+                    room = new
+                    {
+                        room.LtRoomId,
+                        room.RoomName,
+                        room.Capacity,
+                        room.Status,
+                        room.CreatedDate
+                    },
+
+                    schedules = schedules.Select(s => new
+                    {
+                        s.LtScheduleId,
+                        s.LtRoomId,
+                        s.Day,
+                        s.Time,
+                        s.StartDate,
+                        s.EndDate,
+                        s.Status,
+                        s.CreatedDate
+                    }).ToList()
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An error occurred while adding LT Room.",
+                    error = ex.Message
+                });
+            }
+        }
+
+        [Authorize]
+        [HttpGet("get-lt-rooms")]
+        public async Task<IActionResult> GetLTRooms()
+        {
+            try
+            {
+                // ============================================================
+                // STEP 1: VERIFY ADMIN
+                // ============================================================
+
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "User ID not found."
+                    });
+                }
+
+                if (!int.TryParse(userIdClaim, out int userId))
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Invalid User ID."
+                    });
+                }
+
+                var admin = await db.Users
+                    .FirstOrDefaultAsync(u =>
+                        u.UserId == userId &&
+                        u.Role == "Admin");
+
+                if (admin == null)
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Only Admin can view LT Rooms."
+                    });
+                }
+
+
+                // ============================================================
+                // STEP 2: GET ALL LT ROOMS
+                // ============================================================
+
+                var rooms = await db.LtRooms
+                    .OrderBy(r => r.RoomName)
+                    .Select(r => new
+                    {
+                        r.LtRoomId,
+                        r.RoomName,
+                        r.Capacity,
+                        r.Status,
+                        r.CreatedDate,
+
+                        // ====================================================
+                        // GET ROOM SCHEDULES
+                        // ====================================================
+
+                        schedules = db.LtRoomSchedules
+                            .Where(s => s.LtRoomId == r.LtRoomId)
+                            .OrderBy(s => s.Day)
+                            .ThenBy(s => s.Time)
+                            .Select(s => new
+                            {
+                                s.LtScheduleId,
+                                s.LtRoomId,
+                                s.Day,
+                                s.Time,
+                                s.StartDate,
+                                s.EndDate,
+                                s.Status,
+                                s.CreatedDate
+                            })
+                            .ToList()
+                    })
+                    .ToListAsync();
+
+
+                // ============================================================
+                // STEP 3: RETURN RESPONSE
+                // ============================================================
+
+                return Ok(new
+                {
+                    message = "LT Rooms retrieved successfully.",
+
+                    totalRooms = rooms.Count,
+
+                    rooms = rooms
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An error occurred while retrieving LT Rooms.",
+                    error = ex.Message
+                });
+            }
+        }
     }
     public class AddSubjectDTO
     {
@@ -1138,4 +1493,20 @@ namespace HouseofTutorAPI.Controllers
         public decimal MinHourlyRate { get; set; }
         public decimal MaxHourlyRate { get; set; }
     }
+
+    public class AddLTRoomRequest
+    {
+        public string RoomName { get; set; }
+        public int Capacity { get; set; }
+        public List<LT_RoomScheduleRequest> Schedules { get; set; }
+    }
+
+    public class LT_RoomScheduleRequest
+    {
+        public string Day { get; set; }
+        public string Time { get; set; }
+        public DateOnly? StartDate { get; set; }
+        public DateOnly? EndDate { get; set; }
+    }
+
 }

@@ -459,7 +459,7 @@ namespace HouseofTutorAPI.Controllers
                 // Get all children of this parent
                 var children = db.Students
                     .Include(s => s.User)
-                    .Where(s => s.FatherCnic == parent.Cnic)
+                    .Where(s => s.FatherCnic == parent.Cnic && s.FeeResponsibility == "ByParent") 
                     .ToList();
 
                 if (!children.Any())
@@ -488,7 +488,7 @@ namespace HouseofTutorAPI.Controllers
                         join tutorUser in db.Users
                             on tutor.UserId equals tutorUser.UserId
 
-                        where fee.StudentId == student.StudentId && student.FeeResponsibility == "ByParent"
+                        where fee.StudentId == student.StudentId 
 
                         select new
                         {

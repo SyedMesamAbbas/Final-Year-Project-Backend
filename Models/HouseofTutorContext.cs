@@ -19,6 +19,12 @@ public partial class HouseofTutorContext : DbContext
 
     public virtual DbSet<Feedback> Feedbacks { get; set; }
 
+    public virtual DbSet<LtRoom> LtRooms { get; set; }
+
+    public virtual DbSet<LtRoomBooking> LtRoomBookings { get; set; }
+
+    public virtual DbSet<LtRoomSchedule> LtRoomSchedules { get; set; }
+
     public virtual DbSet<Payment> Payments { get; set; }
 
     public virtual DbSet<Request> Requests { get; set; }
@@ -35,7 +41,13 @@ public partial class HouseofTutorContext : DbContext
 
     public virtual DbSet<StudentCourseFee> StudentCourseFees { get; set; }
 
+    public virtual DbSet<StudentFriend> StudentFriends { get; set; }
+
     public virtual DbSet<StudentSchedule> StudentSchedules { get; set; }
+
+    public virtual DbSet<StudyGroup> StudyGroups { get; set; }
+
+    public virtual DbSet<StudyGroupMember> StudyGroupMembers { get; set; }
 
     public virtual DbSet<Tutor> Tutors { get; set; }
 
@@ -104,6 +116,115 @@ public partial class HouseofTutorContext : DbContext
             entity.HasOne(d => d.Tutor).WithMany(p => p.Feedbacks)
                 .HasForeignKey(d => d.TutorId)
                 .HasConstraintName("FK__Feedback__tutor___656C112C");
+        });
+
+        modelBuilder.Entity<LtRoom>(entity =>
+        {
+            entity.HasKey(e => e.LtRoomId).HasName("PK__LT_Room__C7493DA17983D96F");
+
+            entity.ToTable("LT_Room");
+
+            entity.HasIndex(e => e.RoomName, "UQ__LT_Room__1B7D99CD7085811F").IsUnique();
+
+            entity.Property(e => e.LtRoomId).HasColumnName("lt_room_id");
+            entity.Property(e => e.Capacity)
+                .HasDefaultValue(3)
+                .HasColumnName("capacity");
+            entity.Property(e => e.CreatedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_date");
+            entity.Property(e => e.RoomName)
+                .HasMaxLength(50)
+                .IsUnicode(false)
+                .HasColumnName("room_name");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Active")
+                .HasColumnName("status");
+        });
+
+        modelBuilder.Entity<LtRoomBooking>(entity =>
+        {
+            entity.HasKey(e => e.LtBookingId).HasName("PK__LT_Room___4ECCAA7FB90BA073");
+
+            entity.ToTable("LT_Room_Booking");
+
+            entity.Property(e => e.LtBookingId).HasColumnName("lt_booking_id");
+            entity.Property(e => e.ClassDate).HasColumnName("class_date");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_date");
+            entity.Property(e => e.Day)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasColumnName("day");
+            entity.Property(e => e.EndTime).HasColumnName("end_time");
+            entity.Property(e => e.LtRoomId).HasColumnName("lt_room_id");
+            entity.Property(e => e.StartTime).HasColumnName("start_time");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Booked")
+                .HasColumnName("status");
+            entity.Property(e => e.StudyGroupId).HasColumnName("study_group_id");
+            entity.Property(e => e.TutorId).HasColumnName("tutor_id");
+
+            entity.HasOne(d => d.Course).WithMany(p => p.LtRoomBookings)
+                .HasForeignKey(d => d.CourseId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__LT_Room_B__cours__0C50D423");
+
+            entity.HasOne(d => d.LtRoom).WithMany(p => p.LtRoomBookings)
+                .HasForeignKey(d => d.LtRoomId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__LT_Room_B__lt_ro__0A688BB1");
+
+            entity.HasOne(d => d.StudyGroup).WithMany(p => p.LtRoomBookings)
+                .HasForeignKey(d => d.StudyGroupId)
+                .HasConstraintName("FK__LT_Room_B__study__0D44F85C");
+
+            entity.HasOne(d => d.Tutor).WithMany(p => p.LtRoomBookings)
+                .HasForeignKey(d => d.TutorId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__LT_Room_B__tutor__0B5CAFEA");
+        });
+
+        modelBuilder.Entity<LtRoomSchedule>(entity =>
+        {
+            entity.HasKey(e => e.LtScheduleId).HasName("PK__LT_Room___6866EEFA2BF64480");
+
+            entity.ToTable("LT_Room_Schedule");
+
+            entity.Property(e => e.LtScheduleId).HasColumnName("lt_schedule_id");
+            entity.Property(e => e.CreatedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_date");
+            entity.Property(e => e.Day)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasColumnName("day");
+            entity.Property(e => e.EndDate).HasColumnName("end_date");
+            entity.Property(e => e.LtRoomId).HasColumnName("lt_room_id");
+            entity.Property(e => e.StartDate).HasColumnName("start_date");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Available")
+                .HasColumnName("status");
+            entity.Property(e => e.Time)
+                .HasMaxLength(100)
+                .IsUnicode(false)
+                .HasColumnName("time");
+
+            entity.HasOne(d => d.LtRoom).WithMany(p => p.LtRoomSchedules)
+                .HasForeignKey(d => d.LtRoomId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__LT_Room_S__lt_ro__6BE40491");
         });
 
         modelBuilder.Entity<Payment>(entity =>
@@ -182,6 +303,7 @@ public partial class HouseofTutorContext : DbContext
                 .HasMaxLength(50)
                 .IsUnicode(false);
             entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.StudyGroupId).HasColumnName("study_group_id");
             entity.Property(e => e.Time)
                 .HasMaxLength(100)
                 .IsUnicode(false);
@@ -199,6 +321,10 @@ public partial class HouseofTutorContext : DbContext
             entity.HasOne(d => d.Student).WithMany(p => p.Requests)
                 .HasForeignKey(d => d.StudentId)
                 .HasConstraintName("FK__Request__student__5DCAEF64");
+
+            entity.HasOne(d => d.StudyGroup).WithMany(p => p.Requests)
+                .HasForeignKey(d => d.StudyGroupId)
+                .HasConstraintName("FK_Request_Study_Group");
 
             entity.HasOne(d => d.Tutor).WithMany(p => p.Requests)
                 .HasForeignKey(d => d.TutorId)
@@ -392,6 +518,39 @@ public partial class HouseofTutorContext : DbContext
                 .HasConstraintName("FK__Student_C__tutor__2180FB33");
         });
 
+        modelBuilder.Entity<StudentFriend>(entity =>
+        {
+            entity.HasKey(e => e.FriendshipId).HasName("PK__Student___BC802BCFF5EB167E");
+
+            entity.ToTable("Student_Friend");
+
+            entity.Property(e => e.FriendshipId).HasColumnName("friendship_id");
+            entity.Property(e => e.AcceptedDate)
+                .HasColumnType("datetime")
+                .HasColumnName("accepted_date");
+            entity.Property(e => e.FriendStudentId).HasColumnName("friend_student_id");
+            entity.Property(e => e.RequestedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("requested_date");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Pending")
+                .HasColumnName("status");
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+
+            entity.HasOne(d => d.FriendStudent).WithMany(p => p.StudentFriendFriendStudents)
+                .HasForeignKey(d => d.FriendStudentId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Student_F__frien__72910220");
+
+            entity.HasOne(d => d.Student).WithMany(p => p.StudentFriendStudents)
+                .HasForeignKey(d => d.StudentId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Student_F__stude__719CDDE7");
+        });
+
         modelBuilder.Entity<StudentSchedule>(entity =>
         {
             entity.HasKey(e => e.ScheduleId).HasName("PK__Student___C46A8A6FA77E8ECE");
@@ -417,6 +576,80 @@ public partial class HouseofTutorContext : DbContext
             entity.HasOne(d => d.Student).WithMany(p => p.StudentSchedules)
                 .HasForeignKey(d => d.StudentId)
                 .HasConstraintName("FK__Student_S__stude__6D0D32F4");
+        });
+
+        modelBuilder.Entity<StudyGroup>(entity =>
+        {
+            entity.HasKey(e => e.StudyGroupId).HasName("PK__Study_Gr__2471BA04515DEE7C");
+
+            entity.ToTable("Study_Group");
+
+            entity.Property(e => e.StudyGroupId).HasColumnName("study_group_id");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedByStudentId).HasColumnName("created_by_student_id");
+            entity.Property(e => e.CreatedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_date");
+            entity.Property(e => e.GroupName)
+                .HasMaxLength(100)
+                .IsUnicode(false)
+                .HasColumnName("group_name");
+            entity.Property(e => e.MaxStudents)
+                .HasDefaultValue(10)
+                .HasColumnName("max_students");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Open")
+                .HasColumnName("status");
+            entity.Property(e => e.TutorId).HasColumnName("tutor_id");
+
+            entity.HasOne(d => d.Course).WithMany(p => p.StudyGroups)
+                .HasForeignKey(d => d.CourseId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Study_Gro__cours__7B264821");
+
+            entity.HasOne(d => d.CreatedByStudent).WithMany(p => p.StudyGroups)
+                .HasForeignKey(d => d.CreatedByStudentId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Study_Gro__creat__7A3223E8");
+
+            entity.HasOne(d => d.Tutor).WithMany(p => p.StudyGroups)
+                .HasForeignKey(d => d.TutorId)
+                .HasConstraintName("FK__Study_Gro__tutor__7C1A6C5A");
+        });
+
+        modelBuilder.Entity<StudyGroupMember>(entity =>
+        {
+            entity.HasKey(e => e.GroupMemberId).HasName("PK__Study_Gr__F3C66B8C02A9B3E4");
+
+            entity.ToTable("Study_Group_Member");
+
+            entity.HasIndex(e => new { e.StudyGroupId, e.StudentId }, "UQ__Study_Gr__96D28A6CDBC8BD28").IsUnique();
+
+            entity.Property(e => e.GroupMemberId).HasColumnName("group_member_id");
+            entity.Property(e => e.JoinedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("joined_date");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Active")
+                .HasColumnName("status");
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.StudyGroupId).HasColumnName("study_group_id");
+
+            entity.HasOne(d => d.Student).WithMany(p => p.StudyGroupMembers)
+                .HasForeignKey(d => d.StudentId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Study_Gro__stude__04AFB25B");
+
+            entity.HasOne(d => d.StudyGroup).WithMany(p => p.StudyGroupMembers)
+                .HasForeignKey(d => d.StudyGroupId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Study_Gro__study__03BB8E22");
         });
 
         modelBuilder.Entity<Tutor>(entity =>

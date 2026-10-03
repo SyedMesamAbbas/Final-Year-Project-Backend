@@ -27,11 +27,15 @@ public partial class Tutor
 
     public virtual ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
 
+    public virtual ICollection<LtRoomBooking> LtRoomBookings { get; set; } = new List<LtRoomBooking>();
+
     public virtual ICollection<Request> Requests { get; set; } = new List<Request>();
 
     public virtual ICollection<Schedule> Schedules { get; set; } = new List<Schedule>();
 
     public virtual ICollection<StudentCourseFee> StudentCourseFees { get; set; } = new List<StudentCourseFee>();
+
+    public virtual ICollection<StudyGroup> StudyGroups { get; set; } = new List<StudyGroup>();
 
     public virtual ICollection<TutorCourseRate> TutorCourseRates { get; set; } = new List<TutorCourseRate>();
 

@@ -39,11 +39,15 @@ public partial class Request
 
     public DateTime? ResponseDeadline { get; set; }
 
+    public int? StudyGroupId { get; set; }
+
     public virtual Course? Course { get; set; }
 
     public virtual RequestGroup? RequestGroup { get; set; }
 
     public virtual Student? Student { get; set; }
+
+    public virtual StudyGroup? StudyGroup { get; set; }
 
     public virtual Tutor? Tutor { get; set; }
 }
