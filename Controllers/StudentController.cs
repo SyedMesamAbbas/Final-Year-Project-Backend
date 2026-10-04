@@ -4591,7 +4591,6 @@ namespace HouseofTutorAPI.Controllers
         // ============================================================
         // SEARCH ALL STUDENTS / SEARCH STUDENTS BY NAME
         // ============================================================
-
         [Authorize]
         [HttpGet("search-students")]
         public async Task<IActionResult> SearchStudents([FromQuery(Name = "name")] string? name = "")
@@ -4824,11 +4823,9 @@ namespace HouseofTutorAPI.Controllers
             }
         }
 
-
         // ============================================================
         // ADD FRIEND
         // ============================================================
-
         [Authorize]
         [HttpPost("add-friend")]
         public async Task<IActionResult> AddFriend([FromBody] AddFriendRequest? model)
@@ -5460,6 +5457,134 @@ namespace HouseofTutorAPI.Controllers
                 return StatusCode(500, new
                 {
                     message = "An error occurred while rejecting friend request.",
+                    error = ex.Message
+                });
+            }
+        }
+
+        [Authorize]
+        [HttpGet("all-friends")]
+        public async Task<IActionResult> GetAllFriends()
+        {
+            try
+            {
+                // ============================================================
+                // STEP 1: GET LOGGED-IN USER ID
+                // ============================================================
+
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    return Unauthorized(new
+                    {
+                        success = false,
+                        message = "User ID not found in token."
+                    });
+                }
+
+                if (!int.TryParse(userIdClaim, out int userId))
+                {
+                    return Unauthorized(new
+                    {
+                        success = false,
+                        message = "Invalid User ID."
+                    });
+                }
+
+
+                // ============================================================
+                // STEP 2: FIND LOGGED-IN STUDENT
+                // ============================================================
+
+                var student = await db.Students
+                    .FirstOrDefaultAsync(s => s.UserId == userId);
+
+                if (student == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Student profile not found."
+                    });
+                }
+
+
+                // ============================================================
+                // STEP 3: GET ACCEPTED FRIENDS
+                // ============================================================
+
+                var friends = await (
+                    from friendship in db.StudentFriends
+
+                    let friendStudentId =
+                        friendship.StudentId == student.StudentId
+                            ? friendship.FriendStudentId
+                            : friendship.StudentId
+
+                    join friendStudent in db.Students
+                        on friendStudentId equals friendStudent.StudentId
+
+                    join friendUser in db.Users
+                        on friendStudent.UserId equals friendUser.UserId
+
+                    where
+                        friendship.Status == "Accepted"
+                        &&
+                        (
+                            friendship.StudentId == student.StudentId
+                            ||
+                            friendship.FriendStudentId == student.StudentId
+                        )
+
+                    orderby friendUser.FullName
+
+                    select new
+                    {
+                        friendshipId = friendship.FriendshipId,
+
+                        friendStudentId = friendStudent.StudentId,
+
+                        friendUserId = friendUser.UserId,
+
+                        friendName = friendUser.FullName,
+
+                        friendEmail = friendUser.Email,
+
+                        friendPhone = friendUser.Phone,
+
+                        friendshipStatus = friendship.Status,
+
+                        requestedDate = friendship.RequestedDate,
+
+                        acceptedDate = friendship.AcceptedDate
+                    }
+                ).ToListAsync();
+
+
+                // ============================================================
+                // STEP 4: RETURN RESPONSE
+                // ============================================================
+
+                return Ok(new
+                {
+                    success = true,
+
+                    message = "Friends retrieved successfully.",
+
+                    totalFriends = friends.Count,
+
+                    friends = friends
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+
+                    message = "An error occurred while getting friends.",
+
                     error = ex.Message
                 });
             }
