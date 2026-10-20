@@ -3,9 +3,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using static System.Runtime.InteropServices.JavaScript.JSType;
+
 
 namespace HouseofTutorAPI.Controllers
 {
@@ -5760,123 +5762,6 @@ namespace HouseofTutorAPI.Controllers
         }
 
         // =========================================================
-        // SAVE COURSE CONTENT FILE
-        // =========================================================
-        private async Task<string> SaveCourseContent(IFormFile file, int studentId, int courseId)
-        {
-            if (file == null ||
-                file.Length == 0)
-            {
-                return string.Empty;
-            }
-
-            // =====================================================
-            // ALLOWED FILE TYPES
-            // =====================================================
-
-            var allowedExtensions =
-                new HashSet<string>(
-                    StringComparer.OrdinalIgnoreCase)
-                {
-                ".pdf",
-                ".doc",
-                ".docx",
-                ".jpg",
-                ".jpeg",
-                ".png"
-                };
-
-            // =====================================================
-            // EXTENSION
-            // =====================================================
-
-            string extension =
-                Path.GetExtension(
-                    file.FileName
-                );
-
-            if (string.IsNullOrWhiteSpace(extension) ||
-                !allowedExtensions.Contains(extension))
-            {
-                return "Invalid";
-            }
-
-            // =====================================================
-            // WWWROOT
-            // =====================================================
-
-            string webRootPath =
-                _environment.WebRootPath;
-
-            if (string.IsNullOrWhiteSpace(webRootPath))
-            {
-                webRootPath =
-                    Path.Combine(
-                        Directory.GetCurrentDirectory(),
-                        "wwwroot"
-                    );
-            }
-
-            // =====================================================
-            // CREATE FOLDER
-            // =====================================================
-
-            string folder =
-                Path.Combine(
-                    webRootPath,
-                    "CourseContent"
-                );
-
-            if (!Directory.Exists(folder))
-            {
-                Directory.CreateDirectory(folder);
-            }
-
-            // =====================================================
-            // UNIQUE FILE NAME
-            // =====================================================
-
-            string uniqueFileName =
-                $"Student_{studentId}" +
-                $"_Course_{courseId}" +
-                extension.ToLowerInvariant();
-
-            // =====================================================
-            // FULL FILE PATH
-            // =====================================================
-
-            string fullFilePath =
-                Path.Combine(
-                    folder,
-                    uniqueFileName
-                );
-
-            // =====================================================
-            // SAVE FILE
-            // =====================================================
-
-            await using (
-                var stream =
-                    new FileStream(
-                        fullFilePath,
-                        FileMode.Create,
-                        FileAccess.Write,
-                        FileShare.None)
-            )
-            {
-                await file.CopyToAsync(stream);
-            }
-
-            // =====================================================
-            // DATABASE PATH
-            // =====================================================
-
-            return
-                "/CourseContent/" +
-                uniqueFileName;
-        }
-
-        // =========================================================
         // STUDENT GET OWN COURSE CONTENT
         // =========================================================
         [Authorize]
@@ -7245,6 +7130,614 @@ namespace HouseofTutorAPI.Controllers
                 });
             }
         }
+
+        // GET: /api/Student/non-visiting-group-tutors
+        // Dropdown 1: Tutors this student can create a group with.
+        [HttpGet("non-visiting-group-tutors")]
+        public async Task<IActionResult> GetNonVisitingGroupTutors()
+        {
+            var userIdClaim = User.FindFirst(
+                System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid login." });
+
+            var student = await db.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound(new { message = "Student not found." });
+
+            var tutors = await db.Tutors
+                .Where(t =>
+                    t.TeachingMode == "Non-Visiting" &&
+                    t.Status == "Approved" &&
+
+                    // The logged-in student must have an accepted request
+                    // for at least one course with this tutor.
+                    db.Requests.Any(r =>
+                        r.StudentId == student.StudentId &&
+                        r.TutorId == t.TutorId &&
+                        r.Status == "Accepted") &&
+
+                    // Tutor must have at least one course assigned.
+                    db.TutorCourses.Any(tc =>
+                        tc.TutorId == t.TutorId))
+                .Select(t => new
+                {
+                    tutorId = t.TutorId,
+                    tutorName = db.Users
+                        .Where(u => u.UserId == t.UserId)
+                        .Select(u => u.FullName)
+                        .FirstOrDefault()
+                })
+                .OrderBy(t => t.tutorName)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                totalTutors = tutors.Count,
+                tutors
+            });
+        }
+
+
+        // GET: /api/Student/non-visiting-group-tutor-courses?tutorId=1
+        // Dropdown 2: Courses this student studies with the selected tutor.
+        [HttpGet("non-visiting-group-tutor-courses")]
+        public async Task<IActionResult> GetNonVisitingGroupTutorCourses([FromQuery] int tutorId)
+        {
+            var userIdClaim = User.FindFirst(
+                System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid login." });
+
+            if (tutorId <= 0)
+                return BadRequest(new { message = "Select a valid tutor." });
+
+            var student = await db.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound(new { message = "Student not found." });
+
+            // Make sure the selected tutor is an approved Non-Visiting tutor.
+            bool validTutor = await db.Tutors.AnyAsync(t =>
+                t.TutorId == tutorId &&
+                t.TeachingMode == "Non-Visiting" &&
+                t.Status == "Approved");
+
+            if (!validTutor)
+            {
+                return BadRequest(new
+                {
+                    message = "The selected tutor is not an approved Non-Visiting tutor."
+                });
+            }
+
+            // Return only courses that:
+            // 1. The tutor teaches.
+            // 2. The logged-in student has an accepted request for with this tutor.
+            var courses = await db.TutorCourses
+                .Where(tc =>
+                    tc.TutorId == tutorId &&
+                    db.Requests.Any(r =>
+                        r.StudentId == student.StudentId &&
+                        r.TutorId == tutorId &&
+                        r.CourseId == tc.CourseId &&
+                        r.Status == "Accepted"))
+                .Join(
+                    db.Courses,
+                    tc => tc.CourseId,
+                    c => c.CourseId,
+                    (tc, c) => new
+                    {
+                        courseId = c.CourseId,
+                        courseTitle = c.CourseTitle
+                    })
+                .Distinct()
+                .OrderBy(c => c.courseTitle)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                tutorId,
+                totalCourses = courses.Count,
+                courses
+            });
+        }
+
+        [HttpPost("create-study-group")]
+        public async Task<IActionResult> CreateStudyGroup([FromBody] CreateStudyGroupDTO model)
+        {
+            var userIdClaim = User.FindFirst(
+                System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid login." });
+
+            if (model == null || string.IsNullOrWhiteSpace(model.GroupName))
+                return BadRequest(new { message = "Group name is required." });
+
+            if (model.TutorId <= 0 || model.CourseId <= 0)
+                return BadRequest(new { message = "Select a valid tutor and course." });
+
+            var student = await db.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound(new { message = "Student not found." });
+
+            // The tutor must be an approved Non-Visiting tutor.
+            var tutor = await db.Tutors.FirstOrDefaultAsync(t =>
+                t.TutorId == model.TutorId &&
+                t.TeachingMode == "Non-Visiting" &&
+                t.Status == "Approved");
+
+            if (tutor == null)
+            {
+                return BadRequest(new
+                {
+                    message = "Select an approved Non-Visiting tutor."
+                });
+            }
+
+            // The selected tutor must teach this course.
+            bool tutorTeachesCourse = await db.TutorCourses.AnyAsync(tc =>
+                tc.TutorId == model.TutorId &&
+                tc.CourseId == model.CourseId);
+
+            if (!tutorTeachesCourse)
+            {
+                return BadRequest(new
+                {
+                    message = "The selected tutor does not teach this course."
+                });
+            }
+
+            // The creator must be studying this course with this tutor.
+            bool creatorIsEligible = await db.Requests.AnyAsync(r =>
+                r.StudentId == student.StudentId &&
+                r.TutorId == model.TutorId &&
+                r.CourseId == model.CourseId &&
+                r.Status == "Accepted");
+
+            if (!creatorIsEligible)
+            {
+                return BadRequest(new
+                {
+                    message = "You must have an accepted request for this course with the selected tutor."
+                });
+            }
+
+            // One group per creator, tutor and course.
+            bool alreadyCreated = await db.StudyGroups.AnyAsync(g =>
+                g.CreatedByStudentId == student.StudentId &&
+                g.TutorId == model.TutorId &&
+                g.CourseId == model.CourseId &&
+                g.Status != "Cancelled");
+
+            if (alreadyCreated)
+            {
+                return BadRequest(new
+                {
+                    message = "You have already created a group for this tutor and course."
+                });
+            }
+
+            await using var transaction =
+                await db.Database.BeginTransactionAsync();
+
+            try
+            {
+                var group = new StudyGroup
+                {
+                    GroupName = model.GroupName.Trim(),
+                    CreatedByStudentId = student.StudentId,
+                    TutorId = model.TutorId,
+                    CourseId = model.CourseId,
+                    MaxStudents = 10,
+                    Status = "Open",
+                    CreatedDate = DateTime.Now
+                };
+
+                db.StudyGroups.Add(group);
+                await db.SaveChangesAsync();
+
+                // Automatically add the creator as member number 1.
+                var member = new StudyGroupMember
+                {
+                    StudyGroupId = group.StudyGroupId,
+                    StudentId = student.StudentId,
+                    JoinedDate = DateTime.Now,
+                    Status = "Active"
+                };
+
+                db.StudyGroupMembers.Add(member);
+                await db.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    message = "Non-Visiting tutor study group created successfully.",
+                    studyGroupId = group.StudyGroupId,
+                    groupName = group.GroupName,
+                    tutorId = group.TutorId,
+                    courseId = group.CourseId,
+                    totalMembers = 1,
+                    maxStudents = group.MaxStudents,
+                    remainingSlots = group.MaxStudents - 1,
+                    status = group.Status
+                });
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
+        [HttpGet("eligible-group-students")]
+        public async Task<IActionResult> GetEligibleGroupStudents([FromQuery] int tutorId, [FromQuery] int courseId, [FromQuery] int studyGroupId)
+        {
+            var userIdClaim = User.FindFirst(
+                System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid login." });
+
+            if (tutorId <= 0 || courseId <= 0 || studyGroupId <= 0)
+            {
+                return BadRequest(new
+                {
+                    message = "Valid tutor, course and study group IDs are required."
+                });
+            }
+
+            var currentStudent = await db.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (currentStudent == null)
+                return NotFound(new { message = "Student not found." });
+
+            var group = await db.StudyGroups.FirstOrDefaultAsync(g =>
+                g.StudyGroupId == studyGroupId &&
+                g.TutorId == tutorId &&
+                g.CourseId == courseId);
+
+            if (group == null)
+                return NotFound(new { message = "Study group not found." });
+
+            // Only the creator can manage the eligible student list.
+            if (group.CreatedByStudentId != currentStudent.StudentId)
+            {
+                return StatusCode(403, new
+                {
+                    message = "Only the group creator can view eligible students."
+                });
+            }
+
+            // Verify this is still an approved Non-Visiting tutor.
+            bool validTutor = await db.Tutors.AnyAsync(t =>
+                t.TutorId == group.TutorId &&
+                t.TeachingMode == "Non-Visiting" &&
+                t.Status == "Approved");
+
+            if (!validTutor)
+            {
+                return BadRequest(new
+                {
+                    message = "This group is not associated with an approved Non-Visiting tutor."
+                });
+            }
+
+            int membersCount = await db.StudyGroupMembers.CountAsync(m =>
+                m.StudyGroupId == group.StudyGroupId &&
+                m.Status == "Active");
+
+            int remainingSlots = Math.Max(0, group.MaxStudents - membersCount);
+
+            if (remainingSlots == 0 || group.Status != "Open")
+            {
+                return Ok(new
+                {
+                    studyGroupId = group.StudyGroupId,
+                    totalMembers = membersCount,
+                    maxStudents = group.MaxStudents,
+                    remainingSlots = 0,
+                    students = new object[0]
+                });
+            }
+
+            // Students must have an accepted request for the same tutor and course.
+            // Exclude the creator and anyone already an active member of this group.
+            var eligibleStudents = await db.Students
+                .Where(s =>
+                    s.StudentId != currentStudent.StudentId &&
+
+                    db.Requests.Any(r =>
+                        r.StudentId == s.StudentId &&
+                        r.TutorId == group.TutorId &&
+                        r.CourseId == group.CourseId &&
+                        r.Status == "Accepted") &&
+
+                    !db.StudyGroupMembers.Any(m =>
+                        m.StudyGroupId == group.StudyGroupId &&
+                        m.StudentId == s.StudentId &&
+                        m.Status == "Active"))
+                .Select(s => new
+                {
+                    studentId = s.StudentId,
+                    userId = s.UserId,
+                    fullName = db.Users
+                        .Where(u => u.UserId == s.UserId)
+                        .Select(u => u.FullName)
+                        .FirstOrDefault()
+                })
+                .OrderBy(s => s.fullName)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                studyGroupId = group.StudyGroupId,
+                tutorId = group.TutorId,
+                courseId = group.CourseId,
+                totalMembers = membersCount,
+                maxStudents = group.MaxStudents,
+                remainingSlots,
+                students = eligibleStudents
+            });
+        }
+
+        [HttpPost("add-study-group-member")]
+        public async Task<IActionResult> AddStudyGroupMember([FromBody] AddStudyGroupMemberDTO model)
+        {
+            var userIdClaim = User.FindFirst(
+                System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid login." });
+
+            if (model == null ||
+                model.StudyGroupId <= 0 ||
+                model.StudentId <= 0)
+            {
+                return BadRequest(new
+                {
+                    message = "Valid study group and student IDs are required."
+                });
+            }
+
+            var currentStudent = await db.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (currentStudent == null)
+                return NotFound(new { message = "Student not found." });
+
+            var group = await db.StudyGroups
+                .FirstOrDefaultAsync(g => g.StudyGroupId == model.StudyGroupId);
+
+            if (group == null)
+                return NotFound(new { message = "Study group not found." });
+
+            // Only the group creator can add members.
+            if (group.CreatedByStudentId != currentStudent.StudentId)
+            {
+                return StatusCode(403, new
+                {
+                    message = "Only the group creator can add members."
+                });
+            }
+
+            if (group.Status != "Open")
+            {
+                return BadRequest(new
+                {
+                    message = "This group is not open for new members."
+                });
+            }
+
+            if (model.StudentId == currentStudent.StudentId)
+            {
+                return BadRequest(new
+                {
+                    message = "You are already the group creator."
+                });
+            }
+
+            // The group must belong to an approved Non-Visiting tutor.
+            bool validTutor = await db.Tutors.AnyAsync(t =>
+                t.TutorId == group.TutorId &&
+                t.TeachingMode == "Non-Visiting" &&
+                t.Status == "Approved");
+
+            if (!validTutor)
+            {
+                return BadRequest(new
+                {
+                    message = "Only groups with an approved Non-Visiting tutor can add members."
+                });
+            }
+
+            var selectedStudent = await db.Students
+                .FirstOrDefaultAsync(s => s.StudentId == model.StudentId);
+
+            if (selectedStudent == null)
+                return NotFound(new { message = "Selected student not found." });
+
+            // The selected student must have an accepted request
+            // for this exact tutor and course.
+            bool eligible = await db.Requests.AnyAsync(r =>
+                r.StudentId == selectedStudent.StudentId &&
+                r.TutorId == group.TutorId &&
+                r.CourseId == group.CourseId &&
+                r.Status == "Accepted");
+
+            if (!eligible)
+            {
+                return BadRequest(new
+                {
+                    message = "This student does not have an accepted request for the same tutor and course."
+                });
+            }
+
+            bool alreadyMember = await db.StudyGroupMembers.AnyAsync(m =>
+                m.StudyGroupId == group.StudyGroupId &&
+                m.StudentId == selectedStudent.StudentId &&
+                m.Status == "Active");
+
+            if (alreadyMember)
+            {
+                return BadRequest(new
+                {
+                    message = "This student is already an active group member."
+                });
+            }
+
+            await using var transaction =
+                await db.Database.BeginTransactionAsync();
+
+            try
+            {
+                // Count active members inside the transaction.
+                int memberCount = await db.StudyGroupMembers.CountAsync(m =>
+                    m.StudyGroupId == group.StudyGroupId &&
+                    m.Status == "Active");
+
+                int maxStudents = Math.Min(group.MaxStudents, 10);
+
+                if (memberCount >= maxStudents)
+                {
+                    group.Status = "Full";
+                    await db.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    return BadRequest(new
+                    {
+                        message = "Group is full. Maximum 10 active members allowed.",
+                        totalMembers = memberCount,
+                        maxStudents,
+                        remainingSlots = 0
+                    });
+                }
+
+                db.StudyGroupMembers.Add(new StudyGroupMember
+                {
+                    StudyGroupId = group.StudyGroupId,
+                    StudentId = selectedStudent.StudentId,
+                    JoinedDate = DateTime.Now,
+                    Status = "Active"
+                });
+
+                int newMemberCount = memberCount + 1;
+
+                // Mark the group Full when it reaches 10 active members.
+                group.Status = newMemberCount >= maxStudents
+                    ? "Full"
+                    : "Open";
+
+                await db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    message = "Student added to the study group successfully.",
+                    studyGroupId = group.StudyGroupId,
+                    studentId = selectedStudent.StudentId,
+                    totalMembers = newMemberCount,
+                    maxStudents,
+                    remainingSlots = Math.Max(0, maxStudents - newMemberCount),
+                    status = group.Status
+                });
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
+        [HttpGet("my-study-groups")]
+        public async Task<IActionResult> GetMyStudyGroups()
+        {
+            var userIdClaim = User.FindFirst(
+                System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid login." });
+
+            var student = await db.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound(new { message = "Student not found." });
+
+            // Return only groups the student actively belongs to
+            // and that use an approved Non-Visiting tutor.
+            var groups = await (
+                from m in db.StudyGroupMembers
+                join g in db.StudyGroups
+                    on m.StudyGroupId equals g.StudyGroupId
+                join c in db.Courses
+                    on g.CourseId equals c.CourseId
+                join t in db.Tutors
+                    on g.TutorId equals t.TutorId
+                where m.StudentId == student.StudentId
+                      && m.Status == "Active"
+                      && t.TeachingMode == "Non-Visiting"
+                      && t.Status == "Approved"
+                select new
+                {
+                    g.StudyGroupId,
+                    g.GroupName,
+                    g.TutorId,
+                    g.CourseId,
+                    courseTitle = c.CourseTitle,
+                    tutorName = db.Users
+                        .Where(u => u.UserId == t.UserId)
+                        .Select(u => u.FullName)
+                        .FirstOrDefault(),
+                    g.CreatedByStudentId,
+                    g.MaxStudents,
+                    g.Status,
+                    m.JoinedDate
+                })
+                .OrderByDescending(g => g.JoinedDate)
+                .ToListAsync();
+
+            var result = new List<object>();
+
+            foreach (var group in groups)
+            {
+                int count = await db.StudyGroupMembers.CountAsync(m =>
+                    m.StudyGroupId == group.StudyGroupId &&
+                    m.Status == "Active");
+
+                int maxStudents = Math.Min(group.MaxStudents, 10);
+
+                result.Add(new
+                {
+                    group.StudyGroupId,
+                    group.GroupName,
+                    group.TutorId,
+                    group.tutorName,
+                    group.CourseId,
+                    group.courseTitle,
+                    group.CreatedByStudentId,
+                    maxStudents,
+                    totalMembers = count,
+                    remainingSlots = Math.Max(0, maxStudents - count),
+                    group.Status,
+                    isCreator = group.CreatedByStudentId == student.StudentId,
+                    group.JoinedDate
+                });
+            }
+
+            return Ok(result);
+        }
+
         private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
         {
             // Earth radius in kilometers
@@ -7488,6 +7981,124 @@ namespace HouseofTutorAPI.Controllers
                 requestedStart < bookedEndTime &&
                 requestedEnd > bookedStartTime;
         }
+
+        // =========================================================
+        // SAVE COURSE CONTENT FILE
+        // =========================================================
+        private async Task<string> SaveCourseContent(IFormFile file, int studentId, int courseId)
+        {
+            if (file == null ||
+                file.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            // =====================================================
+            // ALLOWED FILE TYPES
+            // =====================================================
+
+            var allowedExtensions =
+                new HashSet<string>(
+                    StringComparer.OrdinalIgnoreCase)
+                {
+                ".pdf",
+                ".doc",
+                ".docx",
+                ".jpg",
+                ".jpeg",
+                ".png"
+                };
+
+            // =====================================================
+            // EXTENSION
+            // =====================================================
+
+            string extension =
+                Path.GetExtension(
+                    file.FileName
+                );
+
+            if (string.IsNullOrWhiteSpace(extension) ||
+                !allowedExtensions.Contains(extension))
+            {
+                return "Invalid";
+            }
+
+            // =====================================================
+            // WWWROOT
+            // =====================================================
+
+            string webRootPath =
+                _environment.WebRootPath;
+
+            if (string.IsNullOrWhiteSpace(webRootPath))
+            {
+                webRootPath =
+                    Path.Combine(
+                        Directory.GetCurrentDirectory(),
+                        "wwwroot"
+                    );
+            }
+
+            // =====================================================
+            // CREATE FOLDER
+            // =====================================================
+
+            string folder =
+                Path.Combine(
+                    webRootPath,
+                    "CourseContent"
+                );
+
+            if (!Directory.Exists(folder))
+            {
+                Directory.CreateDirectory(folder);
+            }
+
+            // =====================================================
+            // UNIQUE FILE NAME
+            // =====================================================
+
+            string uniqueFileName =
+                $"Student_{studentId}" +
+                $"_Course_{courseId}" +
+                extension.ToLowerInvariant();
+
+            // =====================================================
+            // FULL FILE PATH
+            // =====================================================
+
+            string fullFilePath =
+                Path.Combine(
+                    folder,
+                    uniqueFileName
+                );
+
+            // =====================================================
+            // SAVE FILE
+            // =====================================================
+
+            await using (
+                var stream =
+                    new FileStream(
+                        fullFilePath,
+                        FileMode.Create,
+                        FileAccess.Write,
+                        FileShare.None)
+            )
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            // =====================================================
+            // DATABASE PATH
+            // =====================================================
+
+            return
+                "/CourseContent/" +
+                uniqueFileName;
+        }
+
     }
 
     //Dto stand for (Data Transfer Object)
@@ -7702,5 +8313,27 @@ namespace HouseofTutorAPI.Controllers
     public class FriendRequestActionRequest
     {
         public int FriendshipId { get; set; }
+    }
+
+    public class CreateStudyGroupDTO
+    {
+        [Required]
+        [StringLength(100)]
+        public string GroupName { get; set; } = string.Empty;
+
+        [Required]
+        public int TutorId { get; set; }
+
+        [Required]
+        public int CourseId { get; set; }
+    }
+
+    public class AddStudyGroupMemberDTO
+    {
+        [Required]
+        public int StudyGroupId { get; set; }
+
+        [Required]
+        public int StudentId { get; set; }
     }
 }
