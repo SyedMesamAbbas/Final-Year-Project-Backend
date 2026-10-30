@@ -47,6 +47,8 @@ public partial class HouseofTutorContext : DbContext
 
     public virtual DbSet<StudyGroup> StudyGroups { get; set; }
 
+    public virtual DbSet<StudyGroupInvitation> StudyGroupInvitations { get; set; }
+
     public virtual DbSet<StudyGroupMember> StudyGroupMembers { get; set; }
 
     public virtual DbSet<Tutor> Tutors { get; set; }
@@ -618,6 +620,42 @@ public partial class HouseofTutorContext : DbContext
             entity.HasOne(d => d.Tutor).WithMany(p => p.StudyGroups)
                 .HasForeignKey(d => d.TutorId)
                 .HasConstraintName("FK__Study_Gro__tutor__7C1A6C5A");
+        });
+
+        modelBuilder.Entity<StudyGroupInvitation>(entity =>
+        {
+            entity.HasKey(e => e.InvitationId).HasName("PK__Study_Gr__94B74D7CA40D19B2");
+
+            entity.ToTable("Study_Group_Invitation");
+
+            entity.Property(e => e.InvitationId).HasColumnName("invitation_id");
+            entity.Property(e => e.InvitationDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("invitation_date");
+            entity.Property(e => e.InvitedByStudentId).HasColumnName("invited_by_student_id");
+            entity.Property(e => e.InvitedStudentId).HasColumnName("invited_student_id");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Pending")
+                .HasColumnName("status");
+            entity.Property(e => e.StudyGroupId).HasColumnName("study_group_id");
+
+            entity.HasOne(d => d.InvitedByStudent).WithMany(p => p.StudyGroupInvitationInvitedByStudents)
+                .HasForeignKey(d => d.InvitedByStudentId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Study_Gro__invit__2057CCD0");
+
+            entity.HasOne(d => d.InvitedStudent).WithMany(p => p.StudyGroupInvitationInvitedStudents)
+                .HasForeignKey(d => d.InvitedStudentId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Study_Gro__invit__1F63A897");
+
+            entity.HasOne(d => d.StudyGroup).WithMany(p => p.StudyGroupInvitations)
+                .HasForeignKey(d => d.StudyGroupId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Study_Gro__study__1E6F845E");
         });
 
         modelBuilder.Entity<StudyGroupMember>(entity =>

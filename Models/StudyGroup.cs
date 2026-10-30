@@ -29,6 +29,8 @@ public partial class StudyGroup
 
     public virtual ICollection<Request> Requests { get; set; } = new List<Request>();
 
+    public virtual ICollection<StudyGroupInvitation> StudyGroupInvitations { get; set; } = new List<StudyGroupInvitation>();
+
     public virtual ICollection<StudyGroupMember> StudyGroupMembers { get; set; } = new List<StudyGroupMember>();
 
     public virtual Tutor? Tutor { get; set; }

@@ -7379,8 +7379,120 @@ namespace HouseofTutorAPI.Controllers
             }
         }
 
+        //[HttpGet("eligible-group-students")]
+        //public async Task<IActionResult> GetEligibleGroupStudents([FromQuery] int tutorId, [FromQuery] int courseId, [FromQuery] int studyGroupId)
+        //{
+        //    var userIdClaim = User.FindFirst(
+        //        System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        //    if (!int.TryParse(userIdClaim, out int userId))
+        //        return Unauthorized(new { message = "Invalid login." });
+
+        //    if (tutorId <= 0 || courseId <= 0 || studyGroupId <= 0)
+        //    {
+        //        return BadRequest(new
+        //        {
+        //            message = "Valid tutor, course and study group IDs are required."
+        //        });
+        //    }
+
+        //    var currentStudent = await db.Students
+        //        .FirstOrDefaultAsync(s => s.UserId == userId);
+
+        //    if (currentStudent == null)
+        //        return NotFound(new { message = "Student not found." });
+
+        //    var group = await db.StudyGroups.FirstOrDefaultAsync(g =>
+        //        g.StudyGroupId == studyGroupId &&
+        //        g.TutorId == tutorId &&
+        //        g.CourseId == courseId);
+
+        //    if (group == null)
+        //        return NotFound(new { message = "Study group not found." });
+
+        //    // Only the creator can manage the eligible student list.
+        //    if (group.CreatedByStudentId != currentStudent.StudentId)
+        //    {
+        //        return StatusCode(403, new
+        //        {
+        //            message = "Only the group creator can view eligible students."
+        //        });
+        //    }
+
+        //    // Verify this is still an approved Non-Visiting tutor.
+        //    bool validTutor = await db.Tutors.AnyAsync(t =>
+        //        t.TutorId == group.TutorId &&
+        //        t.TeachingMode == "Non-Visiting" &&
+        //        t.Status == "Approved");
+
+        //    if (!validTutor)
+        //    {
+        //        return BadRequest(new
+        //        {
+        //            message = "This group is not associated with an approved Non-Visiting tutor."
+        //        });
+        //    }
+
+        //    int membersCount = await db.StudyGroupMembers.CountAsync(m =>
+        //        m.StudyGroupId == group.StudyGroupId &&
+        //        m.Status == "Active");
+
+        //    int remainingSlots = Math.Max(0, group.MaxStudents - membersCount);
+
+        //    if (remainingSlots == 0 || group.Status != "Open")
+        //    {
+        //        return Ok(new
+        //        {
+        //            studyGroupId = group.StudyGroupId,
+        //            totalMembers = membersCount,
+        //            maxStudents = group.MaxStudents,
+        //            remainingSlots = 0,
+        //            students = new object[0]
+        //        });
+        //    }
+
+        //    // Students must have an accepted request for the same tutor and course.
+        //    // Exclude the creator and anyone already an active member of this group.
+        //    var eligibleStudents = await db.Students
+        //        .Where(s =>
+        //            s.StudentId != currentStudent.StudentId &&
+
+        //            db.Requests.Any(r =>
+        //                r.StudentId == s.StudentId &&
+        //                r.TutorId == group.TutorId &&
+        //                r.CourseId == group.CourseId &&
+        //                r.Status == "Accepted") &&
+
+        //            !db.StudyGroupMembers.Any(m =>
+        //                m.StudyGroupId == group.StudyGroupId &&
+        //                m.StudentId == s.StudentId &&
+        //                m.Status == "Active"))
+        //        .Select(s => new
+        //        {
+        //            studentId = s.StudentId,
+        //            userId = s.UserId,
+        //            fullName = db.Users
+        //                .Where(u => u.UserId == s.UserId)
+        //                .Select(u => u.FullName)
+        //                .FirstOrDefault()
+        //        })
+        //        .OrderBy(s => s.fullName)
+        //        .ToListAsync();
+
+        //    return Ok(new
+        //    {
+        //        studyGroupId = group.StudyGroupId,
+        //        tutorId = group.TutorId,
+        //        courseId = group.CourseId,
+        //        totalMembers = membersCount,
+        //        maxStudents = group.MaxStudents,
+        //        remainingSlots,
+        //        students = eligibleStudents
+        //    });
+        //}
+        // GET: /api/Student/eligible-group-students?tutorId=1&courseId=1&studyGroupId=1
         [HttpGet("eligible-group-students")]
-        public async Task<IActionResult> GetEligibleGroupStudents([FromQuery] int tutorId, [FromQuery] int courseId, [FromQuery] int studyGroupId)
+        public async Task<IActionResult> GetEligibleGroupStudents( [FromQuery] int tutorId, [FromQuery] int courseId, [FromQuery] int studyGroupId)
         {
             var userIdClaim = User.FindFirst(
                 System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -7389,12 +7501,7 @@ namespace HouseofTutorAPI.Controllers
                 return Unauthorized(new { message = "Invalid login." });
 
             if (tutorId <= 0 || courseId <= 0 || studyGroupId <= 0)
-            {
-                return BadRequest(new
-                {
-                    message = "Valid tutor, course and study group IDs are required."
-                });
-            }
+                return BadRequest(new { message = "Valid IDs are required." });
 
             var currentStudent = await db.Students
                 .FirstOrDefaultAsync(s => s.UserId == userId);
@@ -7410,63 +7517,69 @@ namespace HouseofTutorAPI.Controllers
             if (group == null)
                 return NotFound(new { message = "Study group not found." });
 
-            // Only the creator can manage the eligible student list.
             if (group.CreatedByStudentId != currentStudent.StudentId)
-            {
                 return StatusCode(403, new
                 {
                     message = "Only the group creator can view eligible students."
                 });
-            }
 
-            // Verify this is still an approved Non-Visiting tutor.
             bool validTutor = await db.Tutors.AnyAsync(t =>
                 t.TutorId == group.TutorId &&
                 t.TeachingMode == "Non-Visiting" &&
                 t.Status == "Approved");
 
             if (!validTutor)
-            {
                 return BadRequest(new
                 {
-                    message = "This group is not associated with an approved Non-Visiting tutor."
+                    message = "This group does not have an approved Non-Visiting tutor."
                 });
-            }
+
+            int maxStudents = Math.Min(group.MaxStudents, 10);
 
             int membersCount = await db.StudyGroupMembers.CountAsync(m =>
                 m.StudyGroupId == group.StudyGroupId &&
                 m.Status == "Active");
 
-            int remainingSlots = Math.Max(0, group.MaxStudents - membersCount);
+            int remainingSlots = Math.Max(0, maxStudents - membersCount);
 
             if (remainingSlots == 0 || group.Status != "Open")
             {
                 return Ok(new
                 {
-                    studyGroupId = group.StudyGroupId,
+                    studyGroupId,
+                    tutorId,
+                    courseId,
                     totalMembers = membersCount,
-                    maxStudents = group.MaxStudents,
+                    maxStudents,
                     remainingSlots = 0,
                     students = new object[0]
                 });
             }
 
-            // Students must have an accepted request for the same tutor and course.
-            // Exclude the creator and anyone already an active member of this group.
             var eligibleStudents = await db.Students
                 .Where(s =>
                     s.StudentId != currentStudent.StudentId &&
 
+                    // Student must have an accepted class request
+                    // for this exact tutor and course.
                     db.Requests.Any(r =>
                         r.StudentId == s.StudentId &&
                         r.TutorId == group.TutorId &&
                         r.CourseId == group.CourseId &&
                         r.Status == "Accepted") &&
 
+                    // Exclude active group members.
                     !db.StudyGroupMembers.Any(m =>
                         m.StudyGroupId == group.StudyGroupId &&
                         m.StudentId == s.StudentId &&
-                        m.Status == "Active"))
+                        m.Status == "Active") &&
+
+                    // Exclude students who already have an invitation.
+                    !db.StudyGroupInvitations.Any(i =>
+                        i.StudyGroupId == group.StudyGroupId &&
+                        i.InvitedStudentId == s.StudentId &&
+                        (i.Status == "Pending" || i.Status == "Accepted"))
+                )
                 .Select(s => new
                 {
                     studentId = s.StudentId,
@@ -7481,16 +7594,186 @@ namespace HouseofTutorAPI.Controllers
 
             return Ok(new
             {
-                studyGroupId = group.StudyGroupId,
-                tutorId = group.TutorId,
-                courseId = group.CourseId,
+                studyGroupId,
+                tutorId,
+                courseId,
                 totalMembers = membersCount,
-                maxStudents = group.MaxStudents,
+                maxStudents,
                 remainingSlots,
+                totalEligibleStudents = eligibleStudents.Count,
                 students = eligibleStudents
             });
         }
 
+        //[HttpPost("add-study-group-member")]
+        //public async Task<IActionResult> AddStudyGroupMember([FromBody] AddStudyGroupMemberDTO model)
+        //{
+        //    var userIdClaim = User.FindFirst(
+        //        System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        //    if (!int.TryParse(userIdClaim, out int userId))
+        //        return Unauthorized(new { message = "Invalid login." });
+
+        //    if (model == null ||
+        //        model.StudyGroupId <= 0 ||
+        //        model.StudentId <= 0)
+        //    {
+        //        return BadRequest(new
+        //        {
+        //            message = "Valid study group and student IDs are required."
+        //        });
+        //    }
+
+        //    var currentStudent = await db.Students
+        //        .FirstOrDefaultAsync(s => s.UserId == userId);
+
+        //    if (currentStudent == null)
+        //        return NotFound(new { message = "Student not found." });
+
+        //    var group = await db.StudyGroups
+        //        .FirstOrDefaultAsync(g => g.StudyGroupId == model.StudyGroupId);
+
+        //    if (group == null)
+        //        return NotFound(new { message = "Study group not found." });
+
+        //    // Only the group creator can add members.
+        //    if (group.CreatedByStudentId != currentStudent.StudentId)
+        //    {
+        //        return StatusCode(403, new
+        //        {
+        //            message = "Only the group creator can add members."
+        //        });
+        //    }
+
+        //    if (group.Status != "Open")
+        //    {
+        //        return BadRequest(new
+        //        {
+        //            message = "This group is not open for new members."
+        //        });
+        //    }
+
+        //    if (model.StudentId == currentStudent.StudentId)
+        //    {
+        //        return BadRequest(new
+        //        {
+        //            message = "You are already the group creator."
+        //        });
+        //    }
+
+        //    // The group must belong to an approved Non-Visiting tutor.
+        //    bool validTutor = await db.Tutors.AnyAsync(t =>
+        //        t.TutorId == group.TutorId &&
+        //        t.TeachingMode == "Non-Visiting" &&
+        //        t.Status == "Approved");
+
+        //    if (!validTutor)
+        //    {
+        //        return BadRequest(new
+        //        {
+        //            message = "Only groups with an approved Non-Visiting tutor can add members."
+        //        });
+        //    }
+
+        //    var selectedStudent = await db.Students
+        //        .FirstOrDefaultAsync(s => s.StudentId == model.StudentId);
+
+        //    if (selectedStudent == null)
+        //        return NotFound(new { message = "Selected student not found." });
+
+        //    // The selected student must have an accepted request
+        //    // for this exact tutor and course.
+        //    bool eligible = await db.Requests.AnyAsync(r =>
+        //        r.StudentId == selectedStudent.StudentId &&
+        //        r.TutorId == group.TutorId &&
+        //        r.CourseId == group.CourseId &&
+        //        r.Status == "Accepted");
+
+        //    if (!eligible)
+        //    {
+        //        return BadRequest(new
+        //        {
+        //            message = "This student does not have an accepted request for the same tutor and course."
+        //        });
+        //    }
+
+        //    bool alreadyMember = await db.StudyGroupMembers.AnyAsync(m =>
+        //        m.StudyGroupId == group.StudyGroupId &&
+        //        m.StudentId == selectedStudent.StudentId &&
+        //        m.Status == "Active");
+
+        //    if (alreadyMember)
+        //    {
+        //        return BadRequest(new
+        //        {
+        //            message = "This student is already an active group member."
+        //        });
+        //    }
+
+        //    await using var transaction =
+        //        await db.Database.BeginTransactionAsync();
+
+        //    try
+        //    {
+        //        // Count active members inside the transaction.
+        //        int memberCount = await db.StudyGroupMembers.CountAsync(m =>
+        //            m.StudyGroupId == group.StudyGroupId &&
+        //            m.Status == "Active");
+
+        //        int maxStudents = Math.Min(group.MaxStudents, 10);
+
+        //        if (memberCount >= maxStudents)
+        //        {
+        //            group.Status = "Full";
+        //            await db.SaveChangesAsync();
+        //            await transaction.CommitAsync();
+
+        //            return BadRequest(new
+        //            {
+        //                message = "Group is full. Maximum 10 active members allowed.",
+        //                totalMembers = memberCount,
+        //                maxStudents,
+        //                remainingSlots = 0
+        //            });
+        //        }
+
+        //        db.StudyGroupMembers.Add(new StudyGroupMember
+        //        {
+        //            StudyGroupId = group.StudyGroupId,
+        //            StudentId = selectedStudent.StudentId,
+        //            JoinedDate = DateTime.Now,
+        //            Status = "Active"
+        //        });
+
+        //        int newMemberCount = memberCount + 1;
+
+        //        // Mark the group Full when it reaches 10 active members.
+        //        group.Status = newMemberCount >= maxStudents
+        //            ? "Full"
+        //            : "Open";
+
+        //        await db.SaveChangesAsync();
+        //        await transaction.CommitAsync();
+
+        //        return Ok(new
+        //        {
+        //            message = "Student added to the study group successfully.",
+        //            studyGroupId = group.StudyGroupId,
+        //            studentId = selectedStudent.StudentId,
+        //            totalMembers = newMemberCount,
+        //            maxStudents,
+        //            remainingSlots = Math.Max(0, maxStudents - newMemberCount),
+        //            status = group.Status
+        //        });
+        //    }
+        //    catch
+        //    {
+        //        await transaction.RollbackAsync();
+        //        throw;
+        //    }
+        //}
+        // POST: /api/Student/add-study-group-member
+        // Sends an invitation instead of directly adding the student.
         [HttpPost("add-study-group-member")]
         public async Task<IActionResult> AddStudyGroupMember([FromBody] AddStudyGroupMemberDTO model)
         {
@@ -7522,44 +7805,34 @@ namespace HouseofTutorAPI.Controllers
             if (group == null)
                 return NotFound(new { message = "Study group not found." });
 
-            // Only the group creator can add members.
             if (group.CreatedByStudentId != currentStudent.StudentId)
-            {
                 return StatusCode(403, new
                 {
-                    message = "Only the group creator can add members."
+                    message = "Only the group creator can invite students."
                 });
-            }
 
             if (group.Status != "Open")
-            {
                 return BadRequest(new
                 {
-                    message = "This group is not open for new members."
+                    message = "This group is not open for new invitations."
                 });
-            }
 
             if (model.StudentId == currentStudent.StudentId)
-            {
                 return BadRequest(new
                 {
-                    message = "You are already the group creator."
+                    message = "You cannot invite yourself."
                 });
-            }
 
-            // The group must belong to an approved Non-Visiting tutor.
             bool validTutor = await db.Tutors.AnyAsync(t =>
                 t.TutorId == group.TutorId &&
                 t.TeachingMode == "Non-Visiting" &&
                 t.Status == "Approved");
 
             if (!validTutor)
-            {
                 return BadRequest(new
                 {
-                    message = "Only groups with an approved Non-Visiting tutor can add members."
+                    message = "Only approved Non-Visiting tutors are allowed."
                 });
-            }
 
             var selectedStudent = await db.Students
                 .FirstOrDefaultAsync(s => s.StudentId == model.StudentId);
@@ -7567,8 +7840,7 @@ namespace HouseofTutorAPI.Controllers
             if (selectedStudent == null)
                 return NotFound(new { message = "Selected student not found." });
 
-            // The selected student must have an accepted request
-            // for this exact tutor and course.
+            // Verify accepted class request for the same tutor and course.
             bool eligible = await db.Requests.AnyAsync(r =>
                 r.StudentId == selectedStudent.StudentId &&
                 r.TutorId == group.TutorId &&
@@ -7576,64 +7848,443 @@ namespace HouseofTutorAPI.Controllers
                 r.Status == "Accepted");
 
             if (!eligible)
-            {
                 return BadRequest(new
                 {
-                    message = "This student does not have an accepted request for the same tutor and course."
+                    message = "This student is not studying this course with the selected tutor."
                 });
-            }
 
+            // Check whether student is already an active member.
             bool alreadyMember = await db.StudyGroupMembers.AnyAsync(m =>
                 m.StudyGroupId == group.StudyGroupId &&
                 m.StudentId == selectedStudent.StudentId &&
                 m.Status == "Active");
 
             if (alreadyMember)
-            {
                 return BadRequest(new
                 {
-                    message = "This student is already an active group member."
+                    message = "This student is already a group member."
+                });
+
+            // Check whether an invitation is already pending.
+            bool pendingInvitation = await db.StudyGroupInvitations.AnyAsync(i =>
+                i.StudyGroupId == group.StudyGroupId &&
+                i.InvitedStudentId == selectedStudent.StudentId &&
+                i.Status == "Pending");
+
+            if (pendingInvitation)
+                return BadRequest(new
+                {
+                    message = "An invitation has already been sent to this student."
+                });
+
+            // An accepted invitation should already correspond to membership.
+            bool acceptedInvitation = await db.StudyGroupInvitations.AnyAsync(i =>
+                i.StudyGroupId == group.StudyGroupId &&
+                i.InvitedStudentId == selectedStudent.StudentId &&
+                i.Status == "Accepted");
+
+            if (acceptedInvitation)
+                return BadRequest(new
+                {
+                    message = "This student has already accepted an invitation."
+                });
+
+            int memberCount = await db.StudyGroupMembers.CountAsync(m =>
+                m.StudyGroupId == group.StudyGroupId &&
+                m.Status == "Active");
+
+            int maxStudents = Math.Min(group.MaxStudents, 10);
+
+            if (memberCount >= maxStudents)
+            {
+                group.Status = "Full";
+                await db.SaveChangesAsync();
+
+                return BadRequest(new
+                {
+                    message = "Group is full. Maximum 10 active members allowed.",
+                    totalMembers = memberCount,
+                    maxStudents,
+                    remainingSlots = 0
                 });
             }
 
+            // IMPORTANT:
+            // Only insert into Study_Group_Invitation.
+            // Do not insert into Study_Group_Member here.
+            var invitation = new StudyGroupInvitation
+            {
+                StudyGroupId = group.StudyGroupId,
+                InvitedStudentId = selectedStudent.StudentId,
+                InvitedByStudentId = currentStudent.StudentId,
+                InvitationDate = DateTime.Now,
+                Status = "Pending"
+            };
+
+            db.StudyGroupInvitations.Add(invitation);
+
+            await db.SaveChangesAsync();
+
+            var inviterName = await db.Users
+                .Where(u => u.UserId == currentStudent.UserId)
+                .Select(u => u.FullName)
+                .FirstOrDefaultAsync();
+
+            return Ok(new
+            {
+                message = "Group invitation sent successfully. Waiting for student response.",
+
+                invitationId = invitation.InvitationId,
+                studyGroupId = group.StudyGroupId,
+                groupName = group.GroupName,
+
+                invitedStudentId = selectedStudent.StudentId,
+                invitedStudentName = await db.Users
+                    .Where(u => u.UserId == selectedStudent.UserId)
+                    .Select(u => u.FullName)
+                    .FirstOrDefaultAsync(),
+
+                invitedByStudentId = currentStudent.StudentId,
+                invitedByStudentName = inviterName,
+
+                status = invitation.Status,
+
+                totalMembers = memberCount,
+                maxStudents,
+                remainingSlots = maxStudents - memberCount
+            });
+        }
+
+        // GET: /api/Student/my-group-invitations
+        [HttpGet("my-group-invitations")]
+        public async Task<IActionResult> GetMyGroupInvitations()
+        {
+            var userIdClaim = User.FindFirst(
+                System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid login." });
+
+            var student = await db.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound(new { message = "Student not found." });
+
+            var invitations = await (
+                from i in db.StudyGroupInvitations
+                join g in db.StudyGroups
+                    on i.StudyGroupId equals g.StudyGroupId
+                join c in db.Courses
+                    on g.CourseId equals c.CourseId
+                join t in db.Tutors
+                    on g.TutorId equals t.TutorId
+                where i.InvitedStudentId == student.StudentId
+                      && i.Status == "Pending"
+                select new
+                {
+                    invitationId = i.InvitationId,
+
+                    studyGroupId = g.StudyGroupId,
+                    groupName = g.GroupName,
+
+                    courseId = c.CourseId,
+                    courseTitle = c.CourseTitle,
+
+                    tutorId = t.TutorId,
+
+                    tutorName = db.Users
+                        .Where(u => u.UserId == t.UserId)
+                        .Select(u => u.FullName)
+                        .FirstOrDefault(),
+
+                    invitedByStudentId = i.InvitedByStudentId,
+
+                    invitedByStudentName = db.Users
+                        .Where(u => u.UserId ==
+                            db.Students
+                                .Where(s => s.StudentId == i.InvitedByStudentId)
+                                .Select(s => s.UserId)
+                                .FirstOrDefault())
+                        .Select(u => u.FullName)
+                        .FirstOrDefault(),
+
+                    invitationDate = i.InvitationDate,
+                    invitationStatus = i.Status,
+                    groupStatus = g.Status,
+                    g.MaxStudents
+                })
+                .OrderByDescending(i => i.invitationDate)
+                .ToListAsync();
+
+            var result = new List<object>();
+
+            foreach (var invitation in invitations)
+            {
+                int activeMembers = await db.StudyGroupMembers.CountAsync(m =>
+                    m.StudyGroupId == invitation.studyGroupId &&
+                    m.Status == "Active");
+
+                result.Add(new
+                {
+                    invitation.invitationId,
+                    invitation.studyGroupId,
+                    invitation.groupName,
+                    invitation.courseId,
+                    invitation.courseTitle,
+                    invitation.tutorId,
+                    invitation.tutorName,
+                    invitation.invitedByStudentId,
+                    invitation.invitedByStudentName,
+                    invitation.invitationDate,
+                    invitation.invitationStatus,
+                    totalMembers = activeMembers,
+                    maxStudents = Math.Min(invitation.MaxStudents, 10)
+                });
+            }
+
+            return Ok(new
+            {
+                totalInvitations = result.Count,
+                invitations = result
+            });
+        }
+
+        // POST: /api/Student/respond-group-invitation
+        [HttpPost("respond-group-invitation")]
+        public async Task<IActionResult> RespondGroupInvitation([FromBody] RespondGroupInvitationDTO model)
+        {
+            var userIdClaim = User.FindFirst(
+                System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Invalid login." });
+
+            if (model == null || model.InvitationId <= 0)
+                return BadRequest(new
+                {
+                    message = "A valid invitation ID is required."
+                });
+
+            if (string.IsNullOrWhiteSpace(model.Response))
+                return BadRequest(new
+                {
+                    message = "Response is required. Choose Accept or Reject."
+                });
+
+            string response = model.Response.Trim();
+
+            if (!response.Equals("Accept", StringComparison.OrdinalIgnoreCase) &&
+                !response.Equals("Reject", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid response. Only Accept or Reject is allowed."
+                });
+            }
+
+            var student = await db.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound(new { message = "Student not found." });
+
             await using var transaction =
-                await db.Database.BeginTransactionAsync();
+                await db.Database.BeginTransactionAsync(
+                    System.Data.IsolationLevel.Serializable);
 
             try
             {
-                // Count active members inside the transaction.
+                var invitation = await db.StudyGroupInvitations
+                    .FirstOrDefaultAsync(i =>
+                        i.InvitationId == model.InvitationId);
+
+                if (invitation == null)
+                {
+                    await transaction.RollbackAsync();
+
+                    return NotFound(new
+                    {
+                        message = "Group invitation not found."
+                    });
+                }
+
+                // Only the invited student can respond.
+                if (invitation.InvitedStudentId != student.StudentId)
+                {
+                    await transaction.RollbackAsync();
+
+                    return StatusCode(403, new
+                    {
+                        message = "You are not authorized to respond to this invitation."
+                    });
+                }
+
+                if (invitation.Status != "Pending")
+                {
+                    await transaction.RollbackAsync();
+
+                    return BadRequest(new
+                    {
+                        message = $"This invitation has already been {invitation.Status.ToLower()}."
+                    });
+                }
+
+                var group = await db.StudyGroups
+                    .FirstOrDefaultAsync(g =>
+                        g.StudyGroupId == invitation.StudyGroupId);
+
+                if (group == null)
+                {
+                    await transaction.RollbackAsync();
+
+                    return NotFound(new
+                    {
+                        message = "Study group not found."
+                    });
+                }
+
+                // =========================================
+                // REJECT INVITATION
+                // =========================================
+
+                if (response.Equals("Reject", StringComparison.OrdinalIgnoreCase))
+                {
+                    invitation.Status = "Rejected";
+
+                    await db.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    return Ok(new
+                    {
+                        message = "Group invitation rejected successfully.",
+
+                        invitationId = invitation.InvitationId,
+                        studyGroupId = group.StudyGroupId,
+                        groupName = group.GroupName,
+
+                        studentId = student.StudentId,
+                        invitationStatus = invitation.Status,
+
+                        isMember = false
+                    });
+                }
+
+                // =========================================
+                // ACCEPT INVITATION
+                // =========================================
+
+                if (group.Status != "Open")
+                {
+                    await transaction.RollbackAsync();
+
+                    return BadRequest(new
+                    {
+                        message = "This study group is no longer open for new members.",
+                        groupStatus = group.Status
+                    });
+                }
+
+                // Verify the tutor is still approved and Non-Visiting.
+                bool validTutor = await db.Tutors.AnyAsync(t =>
+                    t.TutorId == group.TutorId &&
+                    t.TeachingMode == "Non-Visiting" &&
+                    t.Status == "Approved");
+
+                if (!validTutor)
+                {
+                    await transaction.RollbackAsync();
+
+                    return BadRequest(new
+                    {
+                        message = "The tutor associated with this group is no longer eligible."
+                    });
+                }
+
+                // Verify that the invited student still has an accepted
+                // class request for this exact tutor and course.
+                bool eligible = await db.Requests.AnyAsync(r =>
+                    r.StudentId == student.StudentId &&
+                    r.TutorId == group.TutorId &&
+                    r.CourseId == group.CourseId &&
+                    r.Status == "Accepted");
+
+                if (!eligible)
+                {
+                    await transaction.RollbackAsync();
+
+                    return BadRequest(new
+                    {
+                        message = "You are no longer eligible for this group because you do not have an accepted class request for this tutor and course."
+                    });
+                }
+
+                int maxStudents = Math.Min(group.MaxStudents, 10);
+
                 int memberCount = await db.StudyGroupMembers.CountAsync(m =>
                     m.StudyGroupId == group.StudyGroupId &&
                     m.Status == "Active");
 
-                int maxStudents = Math.Min(group.MaxStudents, 10);
-
                 if (memberCount >= maxStudents)
                 {
                     group.Status = "Full";
+
                     await db.SaveChangesAsync();
                     await transaction.CommitAsync();
 
                     return BadRequest(new
                     {
-                        message = "Group is full. Maximum 10 active members allowed.",
+                        message = "Sorry, this group is already full. Maximum 10 active members allowed.",
+
                         totalMembers = memberCount,
                         maxStudents,
                         remainingSlots = 0
                     });
                 }
 
-                db.StudyGroupMembers.Add(new StudyGroupMember
+                // Check if a previous Left/Removed membership exists.
+                var existingMember = await db.StudyGroupMembers
+                    .FirstOrDefaultAsync(m =>
+                        m.StudyGroupId == group.StudyGroupId &&
+                        m.StudentId == student.StudentId);
+
+                if (existingMember != null)
                 {
-                    StudyGroupId = group.StudyGroupId,
-                    StudentId = selectedStudent.StudentId,
-                    JoinedDate = DateTime.Now,
-                    Status = "Active"
-                });
+                    if (existingMember.Status == "Active")
+                    {
+                        await transaction.RollbackAsync();
+
+                        return BadRequest(new
+                        {
+                            message = "You are already an active member of this group."
+                        });
+                    }
+
+                    // Reactivate an existing membership instead of
+                    // inserting a duplicate record.
+                    existingMember.Status = "Active";
+                    existingMember.JoinedDate = DateTime.Now;
+                }
+                else
+                {
+                    // Only ACCEPTED invitations create group memberships.
+                    var newMember = new StudyGroupMember
+                    {
+                        StudyGroupId = group.StudyGroupId,
+                        StudentId = student.StudentId,
+                        JoinedDate = DateTime.Now,
+                        Status = "Active"
+                    };
+
+                    db.StudyGroupMembers.Add(newMember);
+                }
+
+                // Update invitation status.
+                invitation.Status = "Accepted";
 
                 int newMemberCount = memberCount + 1;
 
-                // Mark the group Full when it reaches 10 active members.
+                // Update group status.
                 group.Status = newMemberCount >= maxStudents
                     ? "Full"
                     : "Open";
@@ -7643,13 +8294,24 @@ namespace HouseofTutorAPI.Controllers
 
                 return Ok(new
                 {
-                    message = "Student added to the study group successfully.",
+                    message = "Congratulations! You have successfully joined the study group.",
+
+                    invitationId = invitation.InvitationId,
+
                     studyGroupId = group.StudyGroupId,
-                    studentId = selectedStudent.StudentId,
+                    groupName = group.GroupName,
+
+                    studentId = student.StudentId,
+
+                    invitationStatus = invitation.Status,
+
+                    isMember = true,
+
                     totalMembers = newMemberCount,
                     maxStudents,
                     remainingSlots = Math.Max(0, maxStudents - newMemberCount),
-                    status = group.Status
+
+                    groupStatus = group.Status
                 });
             }
             catch
@@ -8335,5 +8997,13 @@ namespace HouseofTutorAPI.Controllers
 
         [Required]
         public int StudentId { get; set; }
+    }
+
+    public class RespondGroupInvitationDTO
+    {
+        public int InvitationId { get; set; }
+
+        // Accept or Reject
+        public string Response { get; set; }
     }
 }

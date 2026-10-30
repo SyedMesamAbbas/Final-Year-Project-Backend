@@ -384,6 +384,30 @@ CREATE TABLE Study_Group_Member
 );
 
 
+--New
+CREATE TABLE Study_Group_Invitation
+(
+    invitation_id INT PRIMARY KEY IDENTITY(1,1),
+
+    study_group_id INT NOT NULL,
+    invited_student_id INT NOT NULL,
+    invited_by_student_id INT NOT NULL,
+
+    invitation_date DATETIME DEFAULT GETDATE(),
+
+    status VARCHAR(20) NOT NULL DEFAULT 'Pending'
+        CHECK (status IN ('Pending', 'Accepted', 'Rejected')),
+
+    FOREIGN KEY (study_group_id)
+        REFERENCES Study_Group(study_group_id),
+
+    FOREIGN KEY (invited_student_id)
+        REFERENCES Student(student_id),
+
+    FOREIGN KEY (invited_by_student_id)
+        REFERENCES Student(student_id)
+);
+
 
 
 
@@ -407,6 +431,7 @@ Select * from Payment
 Select * from LT_Room
 Select * from LT_Room_Schedule
 Select * from Student_Friend
+Select * from Study_Group_Invitation
 
 
 update Request set Status='Accepted' where request_id=4048

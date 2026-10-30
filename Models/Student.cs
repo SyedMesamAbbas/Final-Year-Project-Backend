@@ -37,6 +37,10 @@ public partial class Student
 
     public virtual ICollection<StudentSchedule> StudentSchedules { get; set; } = new List<StudentSchedule>();
 
+    public virtual ICollection<StudyGroupInvitation> StudyGroupInvitationInvitedByStudents { get; set; } = new List<StudyGroupInvitation>();
+
+    public virtual ICollection<StudyGroupInvitation> StudyGroupInvitationInvitedStudents { get; set; } = new List<StudyGroupInvitation>();
+
     public virtual ICollection<StudyGroupMember> StudyGroupMembers { get; set; } = new List<StudyGroupMember>();
 
     public virtual ICollection<StudyGroup> StudyGroups { get; set; } = new List<StudyGroup>();
