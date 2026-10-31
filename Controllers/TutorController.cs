@@ -1,9 +1,13 @@
-﻿using HouseofTutorAPI.Models;
+﻿using Azure.Core;
+using HouseofTutorAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Threading.Channels;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using Request = HouseofTutorAPI.Models.Request;
 
 namespace HouseofTutorAPI.Controllers
 {
@@ -348,16 +352,61 @@ namespace HouseofTutorAPI.Controllers
         }
 
         //Tutor accept student classes request for nomal
+        //[Authorize]
+        //[HttpPut("accept-request/{id}")]
+        //public async Task<IActionResult> AcceptRequest(int id)
+        //{
+        //    var request = await db.Requests.FindAsync(id);
+
+        //    if (request == null)
+        //        return NotFound(new { message = "Request not found" });
+
+        //    request.Status = "Accepted";
+
+        //    await db.SaveChangesAsync();
+
+        //    return Ok(new { message = "Request accepted" });
+        //}
+
+//Here are the three functions I changed, in HouseofTutor/Controllers/TutorController.cs, lines 349–471.
+//Tutor accept student classes request for nomal
         [Authorize]
         [HttpPut("accept-request/{id}")]
         public async Task<IActionResult> AcceptRequest(int id)
         {
-            var request = await db.Requests.FindAsync(id);
+            var (request, error) = await GetOwnPendingRequest(id);
 
-            if (request == null)
-                return NotFound(new { message = "Request not found" });
+            if (error != null)
+                return error;
 
-            request.Status = "Accepted";
+            request!.Status = "Accepted";
+            request.ResponseDeadline = null;
+
+            // Close the request group and cancel the remaining tutors in the queue
+            if (request.RequestGroupId.HasValue)
+            {
+                var group = await db.RequestGroups
+                    .FirstOrDefaultAsync(g => g.RequestGroupId == request.RequestGroupId);
+
+                if (group != null)
+                {
+                    group.Status = "Accepted";
+                    group.CurrentRequestId = request.RequestId;
+
+                    var others = await db.Requests
+                        .Where(r =>
+                            r.RequestGroupId == group.RequestGroupId &&
+                            r.RequestId != request.RequestId &&
+                            (r.Status == "Queued" || r.Status == "Pending"))
+                        .ToListAsync();
+
+                    foreach (var other in others)
+                    {
+                        other.Status = "Cancelled";
+                        other.ResponseDeadline = null;
+                    }
+                }
+            }
 
             await db.SaveChangesAsync();
 
@@ -369,17 +418,103 @@ namespace HouseofTutorAPI.Controllers
         [HttpPut("reject-request/{id}")]
         public async Task<IActionResult> RejectRequest(int id)
         {
-            var request = await db.Requests.FindAsync(id);
+            var (request, error) = await GetOwnPendingRequest(id);
 
-            if (request == null)
-                return NotFound(new { message = "Request not found" });
+            if (error != null)
+                return error;
 
-            request.Status = "Rejected";
+            request!.Status = "Rejected";
+            request.ResponseDeadline = null;
+
+            // Pass the request on to the next queued tutor
+            if (request.RequestGroupId.HasValue)
+            {
+                var group = await db.RequestGroups
+                    .FirstOrDefaultAsync(g => g.RequestGroupId == request.RequestGroupId);
+
+                if (group != null &&
+                    group.Status == "Searching" &&
+                    group.CurrentRequestId == request.RequestId)
+                {
+                    var next = await db.Requests
+                        .Where(r =>
+                            r.RequestGroupId == group.RequestGroupId &&
+                            r.Status == "Queued")
+                        .OrderBy(r => r.TutorSequence)
+                        .FirstOrDefaultAsync();
+
+                    if (next != null)
+                    {
+                        var now = DateTime.Now;
+
+                        next.Status = "Pending";
+                        next.RequestDate = now;
+                        next.ResponseDeadline = now.AddMinutes(2);
+
+                        group.CurrentRequestId = next.RequestId;
+                    }
+                    else
+                    {
+                        group.Status = "Rejected";
+                        group.CurrentRequestId = null;
+                    }
+                }
+            }
 
             await db.SaveChangesAsync();
 
             return Ok(new { message = "Request rejected" });
         }
+        
+        // Loads a request that belongs to the logged-in tutor and is still Pending
+        private async Task<(Request? request, IActionResult? error)> GetOwnPendingRequest(int id)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return (null, Unauthorized(new { message = "Invalid token" }));
+
+            var tutor = await db.Tutors.FirstOrDefaultAsync(t => t.UserId == userId);
+
+            if (tutor == null)
+                return (null, NotFound(new { message = "Tutor not found" }));
+
+            var request = await db.Requests.FindAsync(id);
+
+            if (request == null)
+                return (null, NotFound(new { message = "Request not found" }));
+
+            if (request.TutorId != tutor.TutorId)
+                return (null, StatusCode(403, new { message = "This request does not belong to you" }));
+
+            if (request.Status != "Pending")
+                return (null, BadRequest(new { message = $"This request is already {request.Status?.ToLower()}" }));
+
+            return (request, null);
+        }
+//        Fix 1 (queue handling) is in AcceptRequest and RejectRequest:
+//        - AcceptRequest is the if (request.RequestGroupId.HasValue) block(lines 363–386).
+//        - RejectRequest is the if (request.RequestGroupId.HasValue) block(lines 407–439).
+
+//        Fix 2 (ownership and Pending checks) is in GetOwnPendingRequest:
+//        - It sits at lines 447–471 and is called at the top of both actions.
+//        - It returns 404, 403 or 400 before any data changes.
+        ////Tutor reject student classes request for nomal
+        //[Authorize]
+        //[HttpPut("reject-request/{id}")]
+        //public async Task<IActionResult> RejectRequest(int id)
+        //{
+        //    var request = await db.Requests.FindAsync(id);
+
+        //    if (request == null)
+        //        return NotFound(new { message = "Request not found" });
+
+        //    request.Status = "Rejected";
+
+        //    await db.SaveChangesAsync();
+
+        //    return Ok(new { message = "Request rejected" });
+        //}
 
         //Get All Courses from Courses table on plus(+) icon
         [Authorize]
@@ -414,9 +549,7 @@ namespace HouseofTutorAPI.Controllers
                 .ToListAsync();
 
             return Ok(courses);
-        }
-
-        
+        }    
         
         [Authorize] // Add Course and Hourly rate and Hourly rate must between Min and Max Rate, Also Institute
         [HttpPost("add-courses")]
@@ -2394,7 +2527,6 @@ namespace HouseofTutorAPI.Controllers
                 count
             });
         }
-
 
         // =========================================================
         // TUTOR PAYMENT LIST
