@@ -11,5 +11,9 @@ public partial class StudentCourse
 
     public string? Grade { get; set; }
 
+    public int? PreferredLanguageId { get; set; }
+
     public virtual Course Course { get; set; } = null!;
+
+    public virtual ProgrammingLanguage? PreferredLanguage { get; set; }
 }

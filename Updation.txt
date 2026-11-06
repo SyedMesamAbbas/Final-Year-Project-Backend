@@ -41,3 +41,11 @@ Student_Course_Fee
 Payment
 This command:
 Scaffold-DbContext "Server=DESKTOP-FANR662\SQLEXPRESS;Database=HouseofTutor;Trusted_Connection=True;TrustServerCertificate=True;" Microsoft.EntityFrameworkCore.SqlServer -OutputDir Models -Context HouseofTutorContext -Force
+
+
+
+
+
+
+To migrate specific table
+Scaffold-DbContext "Server=DESKTOP-FANR662\SQLEXPRESS;Database=HouseofTutor;Trusted_Connection=True;TrustServerCertificate=True;" Microsoft.EntityFrameworkCore.SqlServer -OutputDir Models -Context HouseofTutorContext -t Tutor_Course_Programming_Language -Force

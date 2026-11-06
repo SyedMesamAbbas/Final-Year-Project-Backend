@@ -19,6 +19,8 @@ public partial class RequestGroup
 
     public virtual Course Course { get; set; } = null!;
 
+    public virtual RequestCoursePlan? RequestCoursePlan { get; set; }
+
     public virtual ICollection<Request> Requests { get; set; } = new List<Request>();
 
     public virtual Student Student { get; set; } = null!;

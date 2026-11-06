@@ -17,6 +17,8 @@ public partial class HouseofTutorContext : DbContext
 
     public virtual DbSet<Course> Courses { get; set; }
 
+    public virtual DbSet<CourseCode> CourseCodes { get; set; }
+
     public virtual DbSet<Feedback> Feedbacks { get; set; }
 
     public virtual DbSet<LtRoom> LtRooms { get; set; }
@@ -27,7 +29,11 @@ public partial class HouseofTutorContext : DbContext
 
     public virtual DbSet<Payment> Payments { get; set; }
 
+    public virtual DbSet<ProgrammingLanguage> ProgrammingLanguages { get; set; }
+
     public virtual DbSet<Request> Requests { get; set; }
+
+    public virtual DbSet<RequestCoursePlan> RequestCoursePlans { get; set; }
 
     public virtual DbSet<RequestGroup> RequestGroups { get; set; }
 
@@ -55,13 +61,17 @@ public partial class HouseofTutorContext : DbContext
 
     public virtual DbSet<TutorCourse> TutorCourses { get; set; }
 
+    public virtual DbSet<TutorCourseEvidence> TutorCourseEvidences { get; set; }
+
     public virtual DbSet<TutorCourseRate> TutorCourseRates { get; set; }
+
+    public virtual DbSet<TutorPreviousTeacher> TutorPreviousTeachers { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseSqlServer("Server=DESKTOP-FANR662\\SQLEXPRESS;Database=HouseofTutor;Trusted_Connection=True;TrustServerCertificate=True;");
+    public virtual DbSet<TutorCourseProgrammingLanguage> TutorCourseProgrammingLanguages { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -82,6 +92,44 @@ public partial class HouseofTutorContext : DbContext
                 .HasMaxLength(100)
                 .IsUnicode(false)
                 .HasColumnName("course_title");
+            entity.Property(e => e.HasLabComponent).HasColumnName("has_lab_component");
+            entity.Property(e => e.StandardClassesPerWeek).HasColumnName("standard_classes_per_week");
+            entity.Property(e => e.StandardDurationWeeks).HasColumnName("standard_duration_weeks");
+        });
+
+        modelBuilder.Entity<CourseCode>(entity =>
+        {
+            entity.HasKey(e => e.CourseCodeId).HasName("PK__Course_C__ED853DAC522565D9");
+
+            entity.ToTable("Course_Code");
+
+            entity.HasIndex(e => e.CourseCode1, "IX_CourseCode_Code");
+
+            entity.HasIndex(e => new { e.Institute, e.CourseCode1, e.Program }, "UQ_Course_Code").IsUnique();
+
+            entity.Property(e => e.CourseCodeId).HasColumnName("course_code_id");
+            entity.Property(e => e.CourseCode1)
+                .HasMaxLength(50)
+                .IsUnicode(false)
+                .HasColumnName("course_code");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.Description)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("description");
+            entity.Property(e => e.Institute)
+                .HasMaxLength(150)
+                .IsUnicode(false)
+                .HasColumnName("institute");
+            entity.Property(e => e.Program)
+                .HasMaxLength(100)
+                .IsUnicode(false)
+                .HasColumnName("program");
+
+            entity.HasOne(d => d.Course).WithMany(p => p.CourseCodes)
+                .HasForeignKey(d => d.CourseId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Course_Co__cours__3DE82FB7");
         });
 
         modelBuilder.Entity<Feedback>(entity =>
@@ -266,6 +314,24 @@ public partial class HouseofTutorContext : DbContext
                 .HasConstraintName("FK__Payment__fee_id__2645B050");
         });
 
+        modelBuilder.Entity<ProgrammingLanguage>(entity =>
+        {
+            entity.HasKey(e => e.LanguageId).HasName("PK__Programm__804CF6B324CAF069");
+
+            entity.ToTable("Programming_Language");
+
+            entity.HasIndex(e => e.LanguageName, "UQ__Programm__9CE823832DBD0393").IsUnique();
+
+            entity.Property(e => e.LanguageId).HasColumnName("language_id");
+            entity.Property(e => e.LanguageName)
+                .HasMaxLength(100)
+                .IsUnicode(false)
+                .HasColumnName("language_name");
+            entity.Property(e => e.Status)
+                .HasDefaultValue(true)
+                .HasColumnName("status");
+        });
+
         modelBuilder.Entity<Request>(entity =>
         {
             entity.HasKey(e => e.RequestId).HasName("PK__Request__18D3B90F519F4A7A");
@@ -331,6 +397,43 @@ public partial class HouseofTutorContext : DbContext
             entity.HasOne(d => d.Tutor).WithMany(p => p.Requests)
                 .HasForeignKey(d => d.TutorId)
                 .HasConstraintName("FK__Request__tutor_i__5EBF139D");
+        });
+
+        modelBuilder.Entity<RequestCoursePlan>(entity =>
+        {
+            entity.HasKey(e => e.PlanId).HasName("PK__Request___BE9F8F1D949AF30C");
+
+            entity.ToTable("Request_Course_Plan");
+
+            entity.HasIndex(e => e.RequestGroupId, "UQ__Request___30D47C28D307C790").IsUnique();
+
+            entity.Property(e => e.PlanId).HasColumnName("plan_id");
+            entity.Property(e => e.CreatedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_date");
+            entity.Property(e => e.OriginalClassesPerWeek).HasColumnName("original_classes_per_week");
+            entity.Property(e => e.OriginalDurationWeeks).HasColumnName("original_duration_weeks");
+            entity.Property(e => e.PlanType)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasColumnName("plan_type");
+            entity.Property(e => e.RequestGroupId).HasColumnName("request_group_id");
+            entity.Property(e => e.RequestedClassesPerWeek).HasColumnName("requested_classes_per_week");
+            entity.Property(e => e.RequestedDurationWeeks).HasColumnName("requested_duration_weeks");
+            entity.Property(e => e.StartDate).HasColumnName("start_date");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Pending")
+                .HasColumnName("status");
+            entity.Property(e => e.TargetEndDate).HasColumnName("target_end_date");
+            entity.Property(e => e.TotalClasses).HasColumnName("total_classes");
+
+            entity.HasOne(d => d.RequestGroup).WithOne(p => p.RequestCoursePlan)
+                .HasForeignKey<RequestCoursePlan>(d => d.RequestGroupId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Request_C__reque__43A1090D");
         });
 
         modelBuilder.Entity<RequestGroup>(entity =>
@@ -431,11 +534,16 @@ public partial class HouseofTutorContext : DbContext
                 .HasMaxLength(10)
                 .IsUnicode(false)
                 .HasColumnName("grade");
+            entity.Property(e => e.PreferredLanguageId).HasColumnName("preferred_language_id");
 
             entity.HasOne(d => d.Course).WithMany(p => p.StudentCourses)
                 .HasForeignKey(d => d.CourseId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__Student_C__cours__72C60C4A");
+
+            entity.HasOne(d => d.PreferredLanguage).WithMany(p => p.StudentCourses)
+                .HasForeignKey(d => d.PreferredLanguageId)
+                .HasConstraintName("FK_StudentCourse_Language");
         });
 
         modelBuilder.Entity<StudentCourseContent>(entity =>
@@ -727,6 +835,8 @@ public partial class HouseofTutorContext : DbContext
 
             entity.ToTable("Tutor_Course");
 
+            entity.HasIndex(e => e.GradeVerificationStatus, "IX_TutorCourse_Verification");
+
             entity.Property(e => e.TutorId).HasColumnName("tutor_id");
             entity.Property(e => e.CourseId).HasColumnName("course_id");
             entity.Property(e => e.CompletedDate)
@@ -736,11 +846,25 @@ public partial class HouseofTutorContext : DbContext
                 .HasMaxLength(10)
                 .IsUnicode(false)
                 .HasColumnName("grade");
+            entity.Property(e => e.GradeVerificationStatus)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Pending")
+                .HasColumnName("grade_verification_status");
             entity.Property(e => e.Institute)
                 .HasMaxLength(150)
                 .IsUnicode(false)
                 .HasColumnName("institute");
             entity.Property(e => e.IsCompleted).HasColumnName("is_completed");
+            entity.Property(e => e.LabCompleted).HasColumnName("lab_completed");
+            entity.Property(e => e.VerificationRemarks)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("verification_remarks");
+            entity.Property(e => e.VerifiedBy).HasColumnName("verified_by");
+            entity.Property(e => e.VerifiedDate)
+                .HasColumnType("datetime")
+                .HasColumnName("verified_date");
 
             entity.HasOne(d => d.Course).WithMany(p => p.TutorCourses)
                 .HasForeignKey(d => d.CourseId)
@@ -751,6 +875,81 @@ public partial class HouseofTutorContext : DbContext
                 .HasForeignKey(d => d.TutorId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__Tutor_Cou__tutor__59063A47");
+
+            entity.HasOne(d => d.VerifiedByNavigation).WithMany(p => p.TutorCourses)
+                .HasForeignKey(d => d.VerifiedBy)
+                .HasConstraintName("FK_TutorCourse_VerifiedBy");
+
+            entity.HasMany(d => d.Languages).WithMany(p => p.TutorCourses)
+                .UsingEntity<Dictionary<string, object>>(
+                    "TutorCourseProgrammingLanguage",
+                    r => r.HasOne<ProgrammingLanguage>().WithMany()
+                        .HasForeignKey("LanguageId")
+                        .OnDelete(DeleteBehavior.ClientSetNull)
+                        .HasConstraintName("FK__Tutor_Cou__langu__39237A9A"),
+                    l => l.HasOne<TutorCourse>().WithMany()
+                        .HasForeignKey("TutorId", "CourseId")
+                        .OnDelete(DeleteBehavior.ClientSetNull)
+                        .HasConstraintName("FK__Tutor_Course_Pro__382F5661"),
+                    j =>
+                    {
+                        j.HasKey("TutorId", "CourseId", "LanguageId").HasName("PK__Tutor_Co__1AAFFE8DEFC53ADE");
+                        j.ToTable("Tutor_Course_Programming_Language");
+                        j.IndexerProperty<int>("TutorId").HasColumnName("tutor_id");
+                        j.IndexerProperty<int>("CourseId").HasColumnName("course_id");
+                        j.IndexerProperty<int>("LanguageId").HasColumnName("language_id");
+                    });
+        });
+
+        modelBuilder.Entity<TutorCourseEvidence>(entity =>
+        {
+            entity.HasKey(e => e.EvidenceId).HasName("PK__Tutor_Co__C59A788E1101AD43");
+
+            entity.ToTable("Tutor_Course_Evidence");
+
+            entity.HasIndex(e => e.VerificationStatus, "IX_CourseEvidence_Status");
+
+            entity.Property(e => e.EvidenceId).HasColumnName("evidence_id");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.EvidenceType)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("evidence_type");
+            entity.Property(e => e.FileName)
+                .HasMaxLength(255)
+                .IsUnicode(false)
+                .HasColumnName("file_name");
+            entity.Property(e => e.FilePath)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("file_path");
+            entity.Property(e => e.Remarks)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("remarks");
+            entity.Property(e => e.TutorId).HasColumnName("tutor_id");
+            entity.Property(e => e.UploadedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("uploaded_date");
+            entity.Property(e => e.VerificationStatus)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Pending")
+                .HasColumnName("verification_status");
+            entity.Property(e => e.VerifiedBy).HasColumnName("verified_by");
+            entity.Property(e => e.VerifiedDate)
+                .HasColumnType("datetime")
+                .HasColumnName("verified_date");
+
+            entity.HasOne(d => d.VerifiedByNavigation).WithMany(p => p.TutorCourseEvidences)
+                .HasForeignKey(d => d.VerifiedBy)
+                .HasConstraintName("FK__Tutor_Cou__verif__2F9A1060");
+
+            entity.HasOne(d => d.TutorCourse).WithMany(p => p.TutorCourseEvidences)
+                .HasForeignKey(d => new { d.TutorId, d.CourseId })
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Tutor_Course_Evi__2EA5EC27");
         });
 
         modelBuilder.Entity<TutorCourseRate>(entity =>
@@ -781,6 +980,45 @@ public partial class HouseofTutorContext : DbContext
                 .HasForeignKey(d => d.TutorId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__Tutor_Cou__tutor__1AD3FDA4");
+        });
+
+        modelBuilder.Entity<TutorPreviousTeacher>(entity =>
+        {
+            entity.HasKey(e => e.PreviousTeacherId).HasName("PK__Tutor_Pr__E6BA194949C9F9DB");
+
+            entity.ToTable("Tutor_Previous_Teacher");
+
+            entity.HasIndex(e => e.TeacherName, "IX_PreviousTeacher_Name");
+
+            entity.Property(e => e.PreviousTeacherId).HasColumnName("previous_teacher_id");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_date");
+            entity.Property(e => e.Description)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("description");
+            entity.Property(e => e.Institute)
+                .HasMaxLength(150)
+                .IsUnicode(false)
+                .HasColumnName("institute");
+            entity.Property(e => e.StudyYear).HasColumnName("study_year");
+            entity.Property(e => e.TeacherName)
+                .HasMaxLength(150)
+                .IsUnicode(false)
+                .HasColumnName("teacher_name");
+            entity.Property(e => e.TutorId).HasColumnName("tutor_id");
+
+            entity.HasOne(d => d.Course).WithMany(p => p.TutorPreviousTeachers)
+                .HasForeignKey(d => d.CourseId)
+                .HasConstraintName("FK__Tutor_Pre__cours__29E1370A");
+
+            entity.HasOne(d => d.Tutor).WithMany(p => p.TutorPreviousTeachers)
+                .HasForeignKey(d => d.TutorId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Tutor_Pre__tutor__28ED12D1");
         });
 
         modelBuilder.Entity<User>(entity =>
@@ -814,6 +1052,32 @@ public partial class HouseofTutorContext : DbContext
                 .HasMaxLength(20)
                 .IsUnicode(false)
                 .HasColumnName("role");
+        });
+
+        modelBuilder.Entity<TutorCourseProgrammingLanguage>(entity =>
+        {
+            entity.ToTable("Tutor_Course_Programming_Language");
+
+            // Composite primary key
+            entity.HasKey(e => new { e.TutorId, e.CourseId, e.LanguageId });
+
+            entity.Property(e => e.TutorId).HasColumnName("tutor_id");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.LanguageId).HasColumnName("language_id");
+
+            // FK (tutor_id, course_id) -> Tutor_Course(tutor_id, course_id)
+            entity.HasOne(d => d.TutorCourse)
+                .WithMany(p => p.TutorCourseProgrammingLanguages)
+                .HasForeignKey(d => new { d.TutorId, d.CourseId })
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Tutor_Course_Programming_Language_Tutor_Course");
+
+            // FK language_id -> Programming_Language(language_id)
+            entity.HasOne(d => d.Language)
+                .WithMany(p => p.TutorCourseProgrammingLanguages)
+                .HasForeignKey(d => d.LanguageId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Tutor_Course_Programming_Language_Programming_Language");
         });
 
         OnModelCreatingPartial(modelBuilder);

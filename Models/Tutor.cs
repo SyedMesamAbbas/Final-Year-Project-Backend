@@ -41,5 +41,7 @@ public partial class Tutor
 
     public virtual ICollection<TutorCourse> TutorCourses { get; set; } = new List<TutorCourse>();
 
+    public virtual ICollection<TutorPreviousTeacher> TutorPreviousTeachers { get; set; } = new List<TutorPreviousTeacher>();
+
     public virtual User? User { get; set; }
 }

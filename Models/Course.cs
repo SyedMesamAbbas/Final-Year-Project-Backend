@@ -13,6 +13,14 @@ public partial class Course
 
     public decimal? AdminSetMaxHourlyRate { get; set; }
 
+    public bool HasLabComponent { get; set; }
+
+    public int? StandardDurationWeeks { get; set; }
+
+    public int? StandardClassesPerWeek { get; set; }
+
+    public virtual ICollection<CourseCode> CourseCodes { get; set; } = new List<CourseCode>();
+
     public virtual ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
 
     public virtual ICollection<LtRoomBooking> LtRoomBookings { get; set; } = new List<LtRoomBooking>();
@@ -32,4 +40,6 @@ public partial class Course
     public virtual ICollection<TutorCourseRate> TutorCourseRates { get; set; } = new List<TutorCourseRate>();
 
     public virtual ICollection<TutorCourse> TutorCourses { get; set; } = new List<TutorCourse>();
+
+    public virtual ICollection<TutorPreviousTeacher> TutorPreviousTeachers { get; set; } = new List<TutorPreviousTeacher>();
 }
