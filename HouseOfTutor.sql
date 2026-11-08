@@ -44,7 +44,10 @@ CREATE TABLE Course (
     course_id INT PRIMARY KEY IDENTITY(1,1),
     course_title VARCHAR(100),
     admin_set_min_hourly_rate DECIMAL(10,2),
-    admin_set_max_hourly_rate DECIMAL(10,2)
+    admin_set_max_hourly_rate DECIMAL(10,2),
+    has_lab_component BIT NOT NULL CONSTRAINT DF_Course_HasLab DEFAULT 0,
+    standard_duration_weeks INT NULL,
+    standard_classes_per_week INT NULL,
 );
 
 CREATE TABLE Schedule (
@@ -78,6 +81,13 @@ CREATE TABLE Tutor_Course (
     is_completed BIT NOT NULL DEFAULT 0,
     completed_date DATETIME NULL,
     institute VARCHAR(150) NULL,
+    lab_completed BIT NULL,
+    grade_verification_status VARCHAR(20) NOT NULL CONSTRAINT DF_TutorCourse_Verification DEFAULT 'Pending',
+    verified_by INT NULL,
+    verified_date DATETIME NULL,
+    verification_remarks VARCHAR(500) NULL,
+    CHECK ( grade_verification_status IN ('Pending', 'Verified', 'Rejected')),
+    FOREIGN KEY (verified_by) REFERENCES Users(user_id),
 
     PRIMARY KEY (tutor_id, course_id),
     FOREIGN KEY (tutor_id) REFERENCES Tutor(tutor_id),
@@ -87,7 +97,9 @@ CREATE TABLE Tutor_Course (
 CREATE TABLE Student_Course (
     student_id INT,
     course_id INT,
-    grade VARCHAR(10),
+    grade VARCHAR(10), 
+    preferred_language_id INT NULL,
+    FOREIGN KEY (preferred_language_id) REFERENCES Programming_Language(language_id),
 
     PRIMARY KEY (student_id, course_id),
     FOREIGN KEY (course_id) REFERENCES Course(course_id)
@@ -408,6 +420,196 @@ CREATE TABLE Study_Group_Invitation
         REFERENCES Student(student_id)
 );
 
+CREATE TABLE Tutor_Previous_Teacher
+(
+    previous_teacher_id INT PRIMARY KEY IDENTITY(1,1),
+
+    tutor_id INT NOT NULL,
+
+    teacher_name VARCHAR(150) NOT NULL,
+
+    institute VARCHAR(150) NOT NULL,
+
+    course_id INT NULL,
+
+    study_year INT NULL,
+
+    description VARCHAR(500) NULL,
+
+    created_date DATETIME DEFAULT GETDATE(),
+
+    FOREIGN KEY (tutor_id)
+        REFERENCES Tutor(tutor_id),
+
+    FOREIGN KEY (course_id)
+        REFERENCES Course(course_id)
+);
+
+CREATE TABLE Tutor_Course_Evidence
+(
+    evidence_id INT PRIMARY KEY IDENTITY(1,1),
+
+    tutor_id INT NOT NULL,
+
+    course_id INT NOT NULL,
+
+    evidence_type VARCHAR(30) NOT NULL,
+
+    file_name VARCHAR(255) NOT NULL,
+
+    file_path VARCHAR(500) NOT NULL,
+
+    uploaded_date DATETIME DEFAULT GETDATE(),
+
+    verification_status VARCHAR(20)
+        NOT NULL DEFAULT 'Pending',
+
+    verified_by INT NULL,
+
+    verified_date DATETIME NULL,
+
+    remarks VARCHAR(500) NULL,
+
+    FOREIGN KEY (tutor_id, course_id)
+        REFERENCES Tutor_Course(tutor_id, course_id),
+
+    FOREIGN KEY (verified_by)
+        REFERENCES Users(user_id),
+
+    CHECK (
+        evidence_type IN
+        ('Transcript', 'Certificate', 'Other')
+    ),
+
+    CHECK (
+        verification_status IN
+        ('Pending', 'Verified', 'Rejected')
+    )
+);
+
+CREATE TABLE Request_Course_Plan
+(
+    plan_id INT PRIMARY KEY IDENTITY(1,1),
+
+    request_group_id INT NOT NULL UNIQUE,
+
+    original_duration_weeks INT NOT NULL,
+
+    original_classes_per_week INT NOT NULL,
+
+    requested_duration_weeks INT NOT NULL,
+
+    requested_classes_per_week INT NOT NULL,
+
+    total_classes INT NOT NULL,
+
+    plan_type VARCHAR(20) NOT NULL,
+
+    start_date DATE NULL,
+
+    target_end_date DATE NULL,
+
+    status VARCHAR(20) NOT NULL DEFAULT 'Pending',
+
+    created_date DATETIME DEFAULT GETDATE(),
+
+    FOREIGN KEY (request_group_id)
+        REFERENCES Request_Group(request_group_id),
+
+    CHECK (original_duration_weeks > 0),
+
+    CHECK (original_classes_per_week > 0),
+
+    CHECK (requested_duration_weeks > 0),
+
+    CHECK (requested_classes_per_week > 0),
+
+    CHECK (total_classes > 0),
+
+    CHECK (
+        plan_type IN ('Normal', 'Accelerated')
+    ),
+
+    CHECK (
+        status IN
+        ('Pending', 'Approved', 'Rejected', 'Active', 'Completed')
+    )
+);
+
+CREATE TABLE Programming_Language
+(
+    language_id INT PRIMARY KEY IDENTITY(1,1),
+
+    language_name VARCHAR(100) NOT NULL UNIQUE,
+
+    status BIT NOT NULL DEFAULT 1
+);
+
+
+
+CREATE TABLE Tutor_Course_Programming_Language
+(
+    tutor_id INT NOT NULL,
+
+    course_id INT NOT NULL,
+
+    language_id INT NOT NULL,
+
+    PRIMARY KEY
+    (tutor_id, course_id, language_id),
+
+    FOREIGN KEY (tutor_id, course_id)
+        REFERENCES Tutor_Course(tutor_id, course_id),
+
+    FOREIGN KEY (language_id)
+        REFERENCES Programming_Language(language_id)
+);
+
+
+CREATE TABLE Course_Code
+(
+    course_code_id INT PRIMARY KEY IDENTITY(1,1),
+
+    course_id INT NOT NULL,
+
+    institute VARCHAR(150) NOT NULL,
+
+    course_code VARCHAR(50) NOT NULL,
+
+    program VARCHAR(100) NULL,
+
+    description VARCHAR(500) NULL,
+
+    FOREIGN KEY (course_id)
+        REFERENCES Course(course_id),
+
+    CONSTRAINT UQ_Course_Code
+        UNIQUE (institute, course_code, program)
+);
+
+
+-- ==========================================
+-- 11. USEFUL SEARCH INDEXES
+-- ==========================================
+
+CREATE INDEX IX_PreviousTeacher_Name
+ON Tutor_Previous_Teacher(teacher_name);
+
+CREATE INDEX IX_CourseCode_Code
+ON Course_Code(course_code);
+
+CREATE INDEX IX_CourseEvidence_Status
+ON Tutor_Course_Evidence(verification_status);
+
+CREATE INDEX IX_TutorCourse_Verification
+ON Tutor_Course(grade_verification_status);
+
+
+
+
+
+
+
 
 
 
@@ -546,3 +748,33 @@ ALTER TABLE Request
 ADD CONSTRAINT FK_Request_Study_Group
 FOREIGN KEY (study_group_id)
 REFERENCES Study_Group(study_group_id);
+
+
+
+
+
+
+
+
+
+
+
+
+INSERT INTO Programming_Language (language_name)
+VALUES
+('C'),
+('C++'),
+('Java'),
+('Python'),
+('C#'),
+('JavaScript'),
+('PHP'),
+('Dart'),
+('Kotlin'),
+('Swift'),
+('SQL');
+
+
+
+
+
