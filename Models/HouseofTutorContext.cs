@@ -880,25 +880,48 @@ public partial class HouseofTutorContext : DbContext
                 .HasForeignKey(d => d.VerifiedBy)
                 .HasConstraintName("FK_TutorCourse_VerifiedBy");
 
-            entity.HasMany(d => d.Languages).WithMany(p => p.TutorCourses)
-                .UsingEntity<Dictionary<string, object>>(
-                    "TutorCourseProgrammingLanguage",
-                    r => r.HasOne<ProgrammingLanguage>().WithMany()
-                        .HasForeignKey("LanguageId")
+            entity.HasMany(d => d.Languages)
+                .WithMany(p => p.TutorCourses)
+                .UsingEntity<TutorCourseProgrammingLanguage>(
+                    right => right
+                        .HasOne(d => d.Language)
+                        .WithMany(p => p.TutorCourseProgrammingLanguages)
+                        .HasForeignKey(d => d.LanguageId)
                         .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName("FK__Tutor_Cou__langu__39237A9A"),
-                    l => l.HasOne<TutorCourse>().WithMany()
-                        .HasForeignKey("TutorId", "CourseId")
+                        .HasConstraintName(
+                            "FK_Tutor_Course_Programming_Language_Programming_Language"
+                        ),
+
+                    left => left
+                        .HasOne(d => d.TutorCourse)
+                        .WithMany(p => p.TutorCourseProgrammingLanguages)
+                        .HasForeignKey(d => new { d.TutorId, d.CourseId })
                         .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName("FK__Tutor_Course_Pro__382F5661"),
-                    j =>
+                        .HasConstraintName(
+                            "FK_Tutor_Course_Programming_Language_Tutor_Course"
+                        ),
+
+                    join =>
                     {
-                        j.HasKey("TutorId", "CourseId", "LanguageId").HasName("PK__Tutor_Co__1AAFFE8DEFC53ADE");
-                        j.ToTable("Tutor_Course_Programming_Language");
-                        j.IndexerProperty<int>("TutorId").HasColumnName("tutor_id");
-                        j.IndexerProperty<int>("CourseId").HasColumnName("course_id");
-                        j.IndexerProperty<int>("LanguageId").HasColumnName("language_id");
-                    });
+                        join.ToTable("Tutor_Course_Programming_Language");
+
+                        join.HasKey(e => new
+                        {
+                            e.TutorId,
+                            e.CourseId,
+                            e.LanguageId
+                        });
+
+                        join.Property(e => e.TutorId)
+                            .HasColumnName("tutor_id");
+
+                        join.Property(e => e.CourseId)
+                            .HasColumnName("course_id");
+
+                        join.Property(e => e.LanguageId)
+                            .HasColumnName("language_id");
+                    }
+                );
         });
 
         modelBuilder.Entity<TutorCourseEvidence>(entity =>
@@ -1052,32 +1075,6 @@ public partial class HouseofTutorContext : DbContext
                 .HasMaxLength(20)
                 .IsUnicode(false)
                 .HasColumnName("role");
-        });
-
-        modelBuilder.Entity<TutorCourseProgrammingLanguage>(entity =>
-        {
-            entity.ToTable("Tutor_Course_Programming_Language");
-
-            // Composite primary key
-            entity.HasKey(e => new { e.TutorId, e.CourseId, e.LanguageId });
-
-            entity.Property(e => e.TutorId).HasColumnName("tutor_id");
-            entity.Property(e => e.CourseId).HasColumnName("course_id");
-            entity.Property(e => e.LanguageId).HasColumnName("language_id");
-
-            // FK (tutor_id, course_id) -> Tutor_Course(tutor_id, course_id)
-            entity.HasOne(d => d.TutorCourse)
-                .WithMany(p => p.TutorCourseProgrammingLanguages)
-                .HasForeignKey(d => new { d.TutorId, d.CourseId })
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Tutor_Course_Programming_Language_Tutor_Course");
-
-            // FK language_id -> Programming_Language(language_id)
-            entity.HasOne(d => d.Language)
-                .WithMany(p => p.TutorCourseProgrammingLanguages)
-                .HasForeignKey(d => d.LanguageId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Tutor_Course_Programming_Language_Programming_Language");
         });
 
         OnModelCreatingPartial(modelBuilder);
