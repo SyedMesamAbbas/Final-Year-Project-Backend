@@ -354,42 +354,137 @@ namespace HouseofTutorAPI.Controllers
 
             return Ok(courses);
         }
-        
+
         // GET ALL COURSES
-        [Authorize]
+        //[Authorize]
+        //[HttpGet("all-courses")]
+        //public async Task<IActionResult> GetAllCourses()
+        //{
+        //    var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)
+        //                      ?? User.FindFirst("sub");
+
+        //    if (userIdClaim == null)
+        //        return Unauthorized(new { message = "Invalid token" });
+
+        //    int userId = int.Parse(userIdClaim.Value);
+
+        //    var student = await db.Students
+        //        .FirstOrDefaultAsync(s => s.UserId == userId);
+
+        //    if (student == null)
+        //        return NotFound(new { message = "Student not found" });
+
+        //    var selectedCourseIds = await db.StudentCourses
+        //        .Where(sc => sc.StudentId == student.StudentId)
+        //        .Select(sc => sc.CourseId)
+        //        .ToListAsync();
+
+        //    var courses = await db.Courses
+        //        .Where(c => !selectedCourseIds.Contains(c.CourseId))
+        //        .Select(c => new CourseDto
+        //        {
+        //            course_id = c.CourseId,
+        //            course_name = c.CourseTitle
+        //        })
+        //        .ToListAsync();
+
+        //    return Ok(courses);
+        //}
+
+        
+        [Authorize]// GET ALL COURSES WITH SEARCH BY COURSE NAME OR COURSE CODE
         [HttpGet("all-courses")]
-        public async Task<IActionResult> GetAllCourses()
+        public async Task<IActionResult> GetAllCourses([FromQuery] string? search = null)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)
-                              ?? User.FindFirst("sub");
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)
+                                  ?? User.FindFirst("sub");
 
-            if (userIdClaim == null)
-                return Unauthorized(new { message = "Invalid token" });
+                if (userIdClaim == null)
+                    return Unauthorized(new
+                    {
+                        success = false,
+                        message = "Invalid token"
+                    });
 
-            int userId = int.Parse(userIdClaim.Value);
+                int userId = int.Parse(userIdClaim.Value);
 
-            var student = await db.Students
-                .FirstOrDefaultAsync(s => s.UserId == userId);
+                var student = await db.Students
+                    .FirstOrDefaultAsync(s => s.UserId == userId);
 
-            if (student == null)
-                return NotFound(new { message = "Student not found" });
+                if (student == null)
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Student not found"
+                    });
 
-            var selectedCourseIds = await db.StudentCourses
-                .Where(sc => sc.StudentId == student.StudentId)
-                .Select(sc => sc.CourseId)
-                .ToListAsync();
+                // Get courses already selected by student
+                var selectedCourseIds = await db.StudentCourses
+                    .Where(sc => sc.StudentId == student.StudentId)
+                    .Select(sc => sc.CourseId)
+                    .ToListAsync();
 
-            var courses = await db.Courses
-                .Where(c => !selectedCourseIds.Contains(c.CourseId))
-                .Select(c => new CourseDto
+                // Get courses excluding already selected courses
+                var query = db.Courses
+                    .Where(c => !selectedCourseIds.Contains(c.CourseId));
+
+                // Search by Course Name OR Course Code
+                if (!string.IsNullOrWhiteSpace(search))
                 {
-                    course_id = c.CourseId,
-                    course_name = c.CourseTitle
-                })
-                .ToListAsync();
+                    search = search.Trim();
 
-            return Ok(courses);
+                    query = query.Where(c =>
+                        (c.CourseTitle != null &&
+                         c.CourseTitle.Contains(search))
+                        ||
+                        c.CourseCodes.Any(cc =>
+                            cc.CourseCode1.Contains(search))
+                    );
+                }
+
+                // Return course details with all associated codes
+                var courses = await query
+                    .OrderBy(c => c.CourseTitle)
+                    .Select(c => new
+                    {
+                        course_id = c.CourseId,
+
+                        course_name = c.CourseTitle,
+
+                        course_codes = c.CourseCodes
+                            .Select(cc => new
+                            {
+                                course_code_id = cc.CourseCodeId,
+                                course_code = cc.CourseCode1,
+                                institute = cc.Institute,
+                                program = cc.Program,
+                                description = cc.Description
+                            })
+                            .ToList()
+                    })
+                    .ToListAsync();
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Courses fetched successfully",
+                    total = courses.Count,
+                    data = courses
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = "Error fetching courses",
+                    error = ex.Message
+                });
+            }
         }
+
 
         // ADD COURSES
         [Authorize]
@@ -3772,7 +3867,6 @@ namespace HouseofTutorAPI.Controllers
                 });
             }
         }
-
 
         //[Authorize]
         //[HttpPost("create-request")] //Request multiple tutor
