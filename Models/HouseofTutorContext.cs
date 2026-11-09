@@ -19,6 +19,8 @@ public partial class HouseofTutorContext : DbContext
 
     public virtual DbSet<CourseCode> CourseCodes { get; set; }
 
+    public virtual DbSet<CoursePlanSession> CoursePlanSessions { get; set; }
+
     public virtual DbSet<Feedback> Feedbacks { get; set; }
 
     public virtual DbSet<LtRoom> LtRooms { get; set; }
@@ -67,9 +69,9 @@ public partial class HouseofTutorContext : DbContext
 
     public virtual DbSet<TutorPreviousTeacher> TutorPreviousTeachers { get; set; }
 
-    public virtual DbSet<User> Users { get; set; }
-
     public virtual DbSet<TutorCourseProgrammingLanguage> TutorCourseProgrammingLanguages { get; set; }
+
+    public virtual DbSet<User> Users { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
 
@@ -130,6 +132,37 @@ public partial class HouseofTutorContext : DbContext
                 .HasForeignKey(d => d.CourseId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__Course_Co__cours__3DE82FB7");
+        });
+
+        modelBuilder.Entity<CoursePlanSession>(entity =>
+        {
+            entity.HasKey(e => e.SessionId).HasName("PK__Course_P__69B13FDCE707B46D");
+
+            entity.ToTable("Course_Plan_Session");
+
+            entity.HasIndex(e => new { e.PlanId, e.ClassNumber }, "UQ__Course_P__35AC26BE9344BB0B").IsUnique();
+
+            entity.Property(e => e.SessionId).HasColumnName("session_id");
+            entity.Property(e => e.ClassDate).HasColumnName("class_date");
+            entity.Property(e => e.ClassNumber).HasColumnName("class_number");
+            entity.Property(e => e.CreatedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_date");
+            entity.Property(e => e.EndTime).HasColumnName("end_time");
+            entity.Property(e => e.PlanId).HasColumnName("plan_id");
+            entity.Property(e => e.StartTime).HasColumnName("start_time");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Scheduled")
+                .HasColumnName("status");
+            entity.Property(e => e.WeekNumber).HasColumnName("week_number");
+
+            entity.HasOne(d => d.Plan).WithMany(p => p.CoursePlanSessions)
+                .HasForeignKey(d => d.PlanId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Course_Pl__plan___51EF2864");
         });
 
         modelBuilder.Entity<Feedback>(entity =>
@@ -408,6 +441,11 @@ public partial class HouseofTutorContext : DbContext
             entity.HasIndex(e => e.RequestGroupId, "UQ__Request___30D47C28D307C790").IsUnique();
 
             entity.Property(e => e.PlanId).HasColumnName("plan_id");
+            entity.Property(e => e.ApprovedByTutorId).HasColumnName("approved_by_tutor_id");
+            entity.Property(e => e.ApprovedDate)
+                .HasColumnType("datetime")
+                .HasColumnName("approved_date");
+            entity.Property(e => e.ClassDurationMinutes).HasColumnName("class_duration_minutes");
             entity.Property(e => e.CreatedDate)
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime")
@@ -429,6 +467,14 @@ public partial class HouseofTutorContext : DbContext
                 .HasColumnName("status");
             entity.Property(e => e.TargetEndDate).HasColumnName("target_end_date");
             entity.Property(e => e.TotalClasses).HasColumnName("total_classes");
+            entity.Property(e => e.TutorRemarks)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("tutor_remarks");
+
+            entity.HasOne(d => d.ApprovedByTutor).WithMany(p => p.RequestCoursePlans)
+                .HasForeignKey(d => d.ApprovedByTutorId)
+                .HasConstraintName("FK_RequestCoursePlan_Tutor");
 
             entity.HasOne(d => d.RequestGroup).WithOne(p => p.RequestCoursePlan)
                 .HasForeignKey<RequestCoursePlan>(d => d.RequestGroupId)
@@ -879,49 +925,6 @@ public partial class HouseofTutorContext : DbContext
             entity.HasOne(d => d.VerifiedByNavigation).WithMany(p => p.TutorCourses)
                 .HasForeignKey(d => d.VerifiedBy)
                 .HasConstraintName("FK_TutorCourse_VerifiedBy");
-
-            entity.HasMany(d => d.Languages)
-                .WithMany(p => p.TutorCourses)
-                .UsingEntity<TutorCourseProgrammingLanguage>(
-                    right => right
-                        .HasOne(d => d.Language)
-                        .WithMany(p => p.TutorCourseProgrammingLanguages)
-                        .HasForeignKey(d => d.LanguageId)
-                        .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName(
-                            "FK_Tutor_Course_Programming_Language_Programming_Language"
-                        ),
-
-                    left => left
-                        .HasOne(d => d.TutorCourse)
-                        .WithMany(p => p.TutorCourseProgrammingLanguages)
-                        .HasForeignKey(d => new { d.TutorId, d.CourseId })
-                        .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName(
-                            "FK_Tutor_Course_Programming_Language_Tutor_Course"
-                        ),
-
-                    join =>
-                    {
-                        join.ToTable("Tutor_Course_Programming_Language");
-
-                        join.HasKey(e => new
-                        {
-                            e.TutorId,
-                            e.CourseId,
-                            e.LanguageId
-                        });
-
-                        join.Property(e => e.TutorId)
-                            .HasColumnName("tutor_id");
-
-                        join.Property(e => e.CourseId)
-                            .HasColumnName("course_id");
-
-                        join.Property(e => e.LanguageId)
-                            .HasColumnName("language_id");
-                    }
-                );
         });
 
         modelBuilder.Entity<TutorCourseEvidence>(entity =>
@@ -1075,6 +1078,42 @@ public partial class HouseofTutorContext : DbContext
                 .HasMaxLength(20)
                 .IsUnicode(false)
                 .HasColumnName("role");
+        });
+
+        modelBuilder.Entity<TutorCourseProgrammingLanguage>(entity =>
+        {
+            entity.ToTable("Tutor_Course_Programming_Language");
+
+            // Composite Primary Key
+            entity.HasKey(x => new
+            {
+                x.TutorId,
+                x.CourseId,
+                x.LanguageId
+            });
+
+            entity.Property(x => x.TutorId)
+                .HasColumnName("tutor_id");
+
+            entity.Property(x => x.CourseId)
+                .HasColumnName("course_id");
+
+            entity.Property(x => x.LanguageId)
+                .HasColumnName("language_id");
+
+            // Relationship with TutorCourse
+            entity.HasOne(x => x.TutorCourse)
+                .WithMany()
+                .HasForeignKey(x => new
+                {
+                    x.TutorId,
+                    x.CourseId
+                });
+
+            // Relationship with ProgrammingLanguage
+            entity.HasOne(x => x.Language)
+                .WithMany()
+                .HasForeignKey(x => x.LanguageId);
         });
 
         OnModelCreatingPartial(modelBuilder);

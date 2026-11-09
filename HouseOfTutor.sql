@@ -513,6 +513,12 @@ CREATE TABLE Request_Course_Plan
 
     created_date DATETIME DEFAULT GETDATE(),
 
+    tutor_remarks VARCHAR(500) NULL,
+    approved_date DATETIME NULL,
+    approved_by_tutor_id INT NULL,
+    class_duration_minutes INT NULL,
+    FOREIGN KEY (approved_by_tutor_id)REFERENCES Tutor(tutor_id),
+
     FOREIGN KEY (request_group_id)
         REFERENCES Request_Group(request_group_id),
 
@@ -535,6 +541,44 @@ CREATE TABLE Request_Course_Plan
         ('Pending', 'Approved', 'Rejected', 'Active', 'Completed')
     )
 );
+
+
+CREATE TABLE Course_Plan_Session
+(
+    session_id INT PRIMARY KEY IDENTITY(1,1),
+
+    plan_id INT NOT NULL,
+
+    class_number INT NOT NULL,
+
+    week_number INT NOT NULL,
+
+    class_date DATE NOT NULL,
+
+    start_time TIME NOT NULL,
+
+    end_time TIME NOT NULL,
+
+    status VARCHAR(20) NOT NULL DEFAULT 'Scheduled',
+
+    created_date DATETIME DEFAULT GETDATE(),
+
+    FOREIGN KEY (plan_id)
+        REFERENCES Request_Course_Plan(plan_id),
+
+    CHECK (status IN
+    ('Scheduled', 'Completed', 'Cancelled', 'Missed')),
+
+    CHECK (start_time < end_time),
+
+    UNIQUE(plan_id, class_number)
+);
+
+
+
+
+
+
 
 CREATE TABLE Programming_Language
 (
@@ -606,6 +650,21 @@ ON Tutor_Course(grade_verification_status);
 
 
 
+SELECT
+    course_id,
+    course_title,
+    standard_duration_weeks,
+    standard_classes_per_week
+FROM Course
+ORDER BY course_id;
+
+UPDATE Course
+SET
+    standard_duration_weeks = 16,
+    standard_classes_per_week = 1
+WHERE course_id In (2,3,4,5,6,8,9,10,11,12,17,18);
+
+
 
 
 
@@ -629,12 +688,18 @@ Select * from Tutor_Course_Rate
 Select * from Student_Course_Fee
 Select * from Student_Schedule
 Select * from Request
+Select * from Request_Group
 Select * from Payment
 Select * from LT_Room
 Select * from LT_Room_Schedule
 Select * from Student_Friend
 Select * from Study_Group_Invitation
 
+Delete Request_Group where request_group_id=1007
+Delete Request where request_id=5068
+
+update Request_Group set status='Searching' where request_group_id=1009
+update Request set status='Pending' where request_id=5070
 
 update Request set Status='Accepted' where request_id=4048
 update Student_Friend set status='Pending' where friendship_id=1
@@ -748,6 +813,23 @@ ALTER TABLE Request
 ADD CONSTRAINT FK_Request_Study_Group
 FOREIGN KEY (study_group_id)
 REFERENCES Study_Group(study_group_id);
+
+
+
+ALTER TABLE Request_Course_Plan
+ADD
+    tutor_remarks VARCHAR(500) NULL,
+    approved_date DATETIME NULL,
+    approved_by_tutor_id INT NULL;
+
+    ALTER TABLE Request_Course_Plan
+ADD CONSTRAINT FK_RequestCoursePlan_Tutor
+FOREIGN KEY (approved_by_tutor_id)
+REFERENCES Tutor(tutor_id);
+
+
+ALTER TABLE Request_Course_Plan
+ADD class_duration_minutes INT NULL;
 
 
 

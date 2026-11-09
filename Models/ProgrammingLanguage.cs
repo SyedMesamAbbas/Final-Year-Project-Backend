@@ -14,5 +14,4 @@ public partial class ProgrammingLanguage
     public virtual ICollection<StudentCourse> StudentCourses { get; set; } = new List<StudentCourse>();
 
     public virtual ICollection<TutorCourse> TutorCourses { get; set; } = new List<TutorCourse>();
-    public virtual ICollection<TutorCourseProgrammingLanguage> TutorCourseProgrammingLanguages { get; set; } = new List<TutorCourseProgrammingLanguage>();
 }

@@ -1877,8 +1877,8 @@ namespace HouseofTutorAPI.Controllers
 
                 var validSortOptions = new[]
                 {
-            "institute", "feedback", "grade", "fee"
-        };
+                    "institute", "feedback", "grade", "fee"
+                };
 
                 if (!validSortOptions.Contains(sortBy))
                 {
@@ -3414,20 +3414,15 @@ namespace HouseofTutorAPI.Controllers
         //}
 
         [Authorize]
-        [HttpPost("create-request")] //Request multiple tutor
-        public async Task<IActionResult> CreateRequest( [FromBody] CreateRequestDto dto)
+        [HttpPost("create-request")]
+        public async Task<IActionResult> CreateRequest([FromBody] CreateRequestDto dto)
         {
-            using var transaction =
-                await db.Database.BeginTransactionAsync();
+            using var transaction = await db.Database.BeginTransactionAsync();
 
             try
             {
-                // =====================================================
-                // STEP 1: Validate Tutors
-                // =====================================================
-
-                if (dto.tutor_ids == null ||
-                    dto.tutor_ids.Count == 0)
+                // STEP 1: Validate tutors
+                if (dto.tutor_ids == null || dto.tutor_ids.Count == 0)
                 {
                     return BadRequest(new
                     {
@@ -3435,14 +3430,9 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
-                dto.tutor_ids = dto.tutor_ids
-                    .Distinct()
-                    .ToList();
+                dto.tutor_ids = dto.tutor_ids.Distinct().ToList();
 
-                // =====================================================
-                // STEP 2: Validate Day / Time
-                // =====================================================
-
+                // STEP 2: Validate day and time
                 if (string.IsNullOrWhiteSpace(dto.day) ||
                     string.IsNullOrWhiteSpace(dto.time))
                 {
@@ -3452,10 +3442,7 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
-                // =====================================================
-                // STEP 3: Validate Learning Mode
-                // =====================================================
-
+                // STEP 3: Validate learning mode
                 if (string.IsNullOrWhiteSpace(dto.learning_mode))
                 {
                     return BadRequest(new
@@ -3467,40 +3454,18 @@ namespace HouseofTutorAPI.Controllers
                 if (dto.learning_mode == "SpecificTime")
                 {
                     if (!dto.learning_duration.HasValue ||
-                        dto.learning_duration <= 0)
+                        dto.learning_duration <= 0 ||
+                        string.IsNullOrWhiteSpace(dto.learning_duration_unit))
                     {
                         return BadRequest(new
                         {
-                            message =
-                                "Learning duration is required for Specific Time."
-                        });
-                    }
-
-                    if (string.IsNullOrWhiteSpace(
-                        dto.learning_duration_unit))
-                    {
-                        return BadRequest(new
-                        {
-                            message =
-                                "Learning duration unit is required."
+                            message = "Learning duration and unit are required for Specific Time."
                         });
                     }
                 }
 
-                // =====================================================
-                // STEP 4: Logged-in Student
-                // =====================================================
-
-                var userIdClaim =
-                    User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-                if (string.IsNullOrWhiteSpace(userIdClaim))
-                {
-                    return Unauthorized(new
-                    {
-                        message = "User not authenticated."
-                    });
-                }
+                // STEP 4: Get logged-in student
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
                 if (!int.TryParse(userIdClaim, out int userId))
                 {
@@ -3511,8 +3476,7 @@ namespace HouseofTutorAPI.Controllers
                 }
 
                 var student = await db.Students
-                    .FirstOrDefaultAsync(
-                        s => s.UserId == userId);
+                    .FirstOrDefaultAsync(s => s.UserId == userId);
 
                 if (student == null)
                 {
@@ -3522,15 +3486,11 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
-                // =====================================================
-                // STEP 5: Course
-                // =====================================================
+                // STEP 5: Get course
+                var course = await db.Courses
+                    .FirstOrDefaultAsync(c => c.CourseId == dto.course_id);
 
-                var courseExists = await db.Courses
-                    .AnyAsync(c =>
-                        c.CourseId == dto.course_id);
-
-                if (!courseExists)
+                if (course == null)
                 {
                     return NotFound(new
                     {
@@ -3538,13 +3498,103 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
-                // =====================================================
-                // STEP 6: Tutors
-                // =====================================================
+                // STEP 6: Validate accelerated plan
+                bool isAccelerated =
+                    string.Equals(
+                        dto.plan_type?.Trim(),
+                        "Accelerated",
+                        StringComparison.OrdinalIgnoreCase
+                    );
 
+                if (!string.IsNullOrWhiteSpace(dto.plan_type) &&
+                    !isAccelerated &&
+                    !string.Equals(
+                        dto.plan_type.Trim(),
+                        "Normal",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return BadRequest(new
+                    {
+                        message = "Invalid plan type. Use Normal or Accelerated."
+                    });
+                }
+
+                int originalWeeks = course.StandardDurationWeeks ?? 0;
+                int originalClassesPerWeek = course.StandardClassesPerWeek ?? 0;
+
+                if (isAccelerated)
+                {
+                    if (originalWeeks <= 0 || originalClassesPerWeek <= 0)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Standard course duration or weekly classes are not configured for this course."
+                        });
+                    }
+
+                    if (!dto.requested_duration_weeks.HasValue ||
+                        dto.requested_duration_weeks.Value <= 0)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Requested duration in weeks is required."
+                        });
+                    }
+
+                    if (!dto.requested_classes_per_week.HasValue ||
+                        dto.requested_classes_per_week.Value <= 0)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Requested classes per week are required."
+                        });
+                    }
+
+                    if (!dto.start_date.HasValue)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Start date is required for accelerated plan."
+                        });
+                    }
+
+                    int originalTotalClasses =
+                        originalWeeks * originalClassesPerWeek;
+
+                    int requestedTotalClasses =
+                        dto.requested_duration_weeks.Value *
+                        dto.requested_classes_per_week.Value;
+
+                    if (dto.requested_duration_weeks.Value >= originalWeeks)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Accelerated duration must be shorter than the standard course duration."
+                        });
+                    }
+
+                    if (requestedTotalClasses != originalTotalClasses)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Total classes must remain equal to the original course plan.",
+                            original_total_classes = originalTotalClasses,
+                            requested_total_classes = requestedTotalClasses
+                        });
+                    }
+
+                    if (dto.start_date.Value < DateOnly.FromDateTime(DateTime.Today))
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Start date cannot be in the past."
+                        });
+                    }
+                }
+
+                // STEP 7: Validate tutors
                 var tutors = await db.Tutors
-                    .Where(t =>
-                        dto.tutor_ids.Contains(t.TutorId))
+                    .Where(t => dto.tutor_ids.Contains(t.TutorId))
                     .ToListAsync();
 
                 var missingTutorIds = dto.tutor_ids
@@ -3560,10 +3610,7 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
-                // =====================================================
-                // STEP 7: Check Existing Searching Group
-                // =====================================================
-
+                // STEP 8: Check existing searching group
                 var existingGroup = await db.RequestGroups
                     .FirstOrDefaultAsync(g =>
                         g.StudentId == student.StudentId &&
@@ -3574,59 +3621,75 @@ namespace HouseofTutorAPI.Controllers
                 {
                     return BadRequest(new
                     {
-                        message =
-                            "You already have an active tutor request.",
-                        request_group_id =
-                            existingGroup.RequestGroupId
+                        message = "You already have an active tutor request.",
+                        request_group_id = existingGroup.RequestGroupId
                     });
                 }
 
-                // =====================================================
-                // STEP 8: Create Request Group
-                // =====================================================
-
+                // STEP 9: Create request group
                 var group = new RequestGroup
                 {
                     StudentId = student.StudentId,
-
                     CourseId = dto.course_id,
-
                     CreatedDate = DateTime.Now,
-
                     Status = "Searching",
-
                     CurrentRequestId = null
                 };
 
                 db.RequestGroups.Add(group);
-
                 await db.SaveChangesAsync();
 
-                // =====================================================
-                // STEP 9: Create Tutor Requests
-                // =====================================================
+                // STEP 10: Save accelerated course plan
+                if (isAccelerated)
+                {
+                    int totalClasses =
+                        originalWeeks * originalClassesPerWeek;
 
-                string fullTime =
-                    $"{dto.day}, {dto.time}";
+                    var plan = new RequestCoursePlan
+                    {
+                        RequestGroupId = group.RequestGroupId,
 
+                        OriginalDurationWeeks = originalWeeks,
+
+                        OriginalClassesPerWeek = originalClassesPerWeek,
+
+                        RequestedDurationWeeks =
+                            dto.requested_duration_weeks!.Value,
+
+                        RequestedClassesPerWeek =
+                            dto.requested_classes_per_week!.Value,
+
+                        TotalClasses = totalClasses,
+
+                        PlanType = "Accelerated",
+
+                        StartDate = dto.start_date,
+
+                        TargetEndDate = null,
+
+                        Status = "Pending",
+
+                        CreatedDate = DateTime.Now
+                    };
+
+                    db.RequestCoursePlans.Add(plan);
+                    await db.SaveChangesAsync();
+                }
+
+                // STEP 11: Create tutor requests
                 DateTime now = DateTime.Now;
-
-                DateTime firstDeadline =
-                    now.AddMinutes(2);
 
                 var requests = new List<Request>();
 
                 for (int i = 0; i < dto.tutor_ids.Count; i++)
                 {
-                    int tutorId = dto.tutor_ids[i];
-
                     bool isFirstTutor = i == 0;
 
                     var tutorRequest = new Request
                     {
                         StudentId = student.StudentId,
 
-                        TutorId = tutorId,
+                        TutorId = dto.tutor_ids[i],
 
                         CourseId = dto.course_id,
 
@@ -3634,12 +3697,9 @@ namespace HouseofTutorAPI.Controllers
 
                         RequestDate = now,
 
-                        Status = isFirstTutor
-                            ? "Pending"
-                            : "Queued",
+                        Status = isFirstTutor ? "Pending" : "Queued",
 
-                        ClassDate =
-                            DateOnly.FromDateTime(now),
+                        ClassDate = DateOnly.FromDateTime(now),
 
                         Day = dto.day,
 
@@ -3647,73 +3707,58 @@ namespace HouseofTutorAPI.Controllers
 
                         ParentRequestId = null,
 
-                        LearningMode =
-                            dto.learning_mode,
+                        LearningMode = dto.learning_mode,
 
-                        LearningDuration =
-                            dto.learning_duration,
+                        LearningDuration = dto.learning_duration,
 
-                        LearningDurationUnit =
-                            dto.learning_duration_unit,
+                        LearningDurationUnit = dto.learning_duration_unit,
 
-                        RequestGroupId =
-                            group.RequestGroupId,
+                        RequestGroupId = group.RequestGroupId,
 
                         TutorSequence = i + 1,
 
-                        ResponseDeadline =
-                            isFirstTutor
-                                ? firstDeadline
-                                : null
+                        ResponseDeadline = isFirstTutor
+                            ? now.AddMinutes(2)
+                            : null
                     };
 
                     requests.Add(tutorRequest);
                 }
 
                 db.Requests.AddRange(requests);
-
                 await db.SaveChangesAsync();
 
-                // =====================================================
-                // STEP 10: Current Request = First Tutor
-                // =====================================================
-
-                group.CurrentRequestId =
-                    requests[0].RequestId;
+                // STEP 12: Set current request
+                group.CurrentRequestId = requests[0].RequestId;
 
                 await db.SaveChangesAsync();
 
                 await transaction.CommitAsync();
 
-                // =====================================================
-                // STEP 11: Response
-                // =====================================================
-
+                // STEP 13: Response
                 return Ok(new
                 {
-                    message =
-                        "Tutor request created successfully. The first tutor has 2 minutes to accept.",
+                    message = "Tutor request created successfully. The first tutor has 2 minutes to accept.",
 
-                    request_group_id =
-                        group.RequestGroupId,
+                    request_group_id = group.RequestGroupId,
 
-                    request_id =
-                        requests[0].RequestId,
+                    request_id = requests[0].RequestId,
 
-                    current_tutor_id =
-                        requests[0].TutorId,
+                    current_tutor_id = requests[0].TutorId,
 
-                    current_tutor_sequence =
-                        requests[0].TutorSequence,
+                    current_tutor_sequence = requests[0].TutorSequence,
 
-                    total_tutors =
-                        requests.Count,
+                    total_tutors = requests.Count,
 
-                    response_deadline =
-                        requests[0].ResponseDeadline,
+                    response_deadline = requests[0].ResponseDeadline,
 
-                    status =
-                        requests[0].Status
+                    status = requests[0].Status,
+
+                    plan_type = isAccelerated ? "Accelerated" : "Normal",
+
+                    total_classes = isAccelerated
+                        ? originalWeeks * originalClassesPerWeek
+                        : (int?)null
                 });
             }
             catch (Exception ex)
@@ -3722,14 +3767,330 @@ namespace HouseofTutorAPI.Controllers
 
                 return StatusCode(500, new
                 {
-                    message =
-                        "Error while creating tutor request.",
-
-                    error =
-                        ex.Message
+                    message = "Error while creating tutor request.",
+                    error = ex.InnerException?.Message ?? ex.Message
                 });
             }
         }
+
+
+        //[Authorize]
+        //[HttpPost("create-request")] //Request multiple tutor
+        //public async Task<IActionResult> CreateRequest( [FromBody] CreateRequestDto dto)
+        //{
+        //    using var transaction =
+        //        await db.Database.BeginTransactionAsync();
+
+        //    try
+        //    {
+        //        // =====================================================
+        //        // STEP 1: Validate Tutors
+        //        // =====================================================
+
+        //        if (dto.tutor_ids == null ||
+        //            dto.tutor_ids.Count == 0)
+        //        {
+        //            return BadRequest(new
+        //            {
+        //                message = "At least one tutor must be selected."
+        //            });
+        //        }
+
+        //        dto.tutor_ids = dto.tutor_ids
+        //            .Distinct()
+        //            .ToList();
+
+        //        // =====================================================
+        //        // STEP 2: Validate Day / Time
+        //        // =====================================================
+
+        //        if (string.IsNullOrWhiteSpace(dto.day) ||
+        //            string.IsNullOrWhiteSpace(dto.time))
+        //        {
+        //            return BadRequest(new
+        //            {
+        //                message = "Day or time missing."
+        //            });
+        //        }
+
+        //        // =====================================================
+        //        // STEP 3: Validate Learning Mode
+        //        // =====================================================
+
+        //        if (string.IsNullOrWhiteSpace(dto.learning_mode))
+        //        {
+        //            return BadRequest(new
+        //            {
+        //                message = "Learning mode is required."
+        //            });
+        //        }
+
+        //        if (dto.learning_mode == "SpecificTime")
+        //        {
+        //            if (!dto.learning_duration.HasValue ||
+        //                dto.learning_duration <= 0)
+        //            {
+        //                return BadRequest(new
+        //                {
+        //                    message =
+        //                        "Learning duration is required for Specific Time."
+        //                });
+        //            }
+
+        //            if (string.IsNullOrWhiteSpace(
+        //                dto.learning_duration_unit))
+        //            {
+        //                return BadRequest(new
+        //                {
+        //                    message =
+        //                        "Learning duration unit is required."
+        //                });
+        //            }
+        //        }
+
+        //        // =====================================================
+        //        // STEP 4: Logged-in Student
+        //        // =====================================================
+
+        //        var userIdClaim =
+        //            User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        //        if (string.IsNullOrWhiteSpace(userIdClaim))
+        //        {
+        //            return Unauthorized(new
+        //            {
+        //                message = "User not authenticated."
+        //            });
+        //        }
+
+        //        if (!int.TryParse(userIdClaim, out int userId))
+        //        {
+        //            return Unauthorized(new
+        //            {
+        //                message = "Invalid user ID."
+        //            });
+        //        }
+
+        //        var student = await db.Students
+        //            .FirstOrDefaultAsync(
+        //                s => s.UserId == userId);
+
+        //        if (student == null)
+        //        {
+        //            return NotFound(new
+        //            {
+        //                message = "Student not found."
+        //            });
+        //        }
+
+        //        // =====================================================
+        //        // STEP 5: Course
+        //        // =====================================================
+
+        //        var courseExists = await db.Courses
+        //            .AnyAsync(c =>
+        //                c.CourseId == dto.course_id);
+
+        //        if (!courseExists)
+        //        {
+        //            return NotFound(new
+        //            {
+        //                message = "Course not found."
+        //            });
+        //        }
+
+        //        // =====================================================
+        //        // STEP 6: Tutors
+        //        // =====================================================
+
+        //        var tutors = await db.Tutors
+        //            .Where(t =>
+        //                dto.tutor_ids.Contains(t.TutorId))
+        //            .ToListAsync();
+
+        //        var missingTutorIds = dto.tutor_ids
+        //            .Except(tutors.Select(t => t.TutorId))
+        //            .ToList();
+
+        //        if (missingTutorIds.Any())
+        //        {
+        //            return NotFound(new
+        //            {
+        //                message = "One or more tutors were not found.",
+        //                missing_tutor_ids = missingTutorIds
+        //            });
+        //        }
+
+        //        // =====================================================
+        //        // STEP 7: Check Existing Searching Group
+        //        // =====================================================
+
+        //        var existingGroup = await db.RequestGroups
+        //            .FirstOrDefaultAsync(g =>
+        //                g.StudentId == student.StudentId &&
+        //                g.CourseId == dto.course_id &&
+        //                g.Status == "Searching");
+
+        //        if (existingGroup != null)
+        //        {
+        //            return BadRequest(new
+        //            {
+        //                message =
+        //                    "You already have an active tutor request.",
+        //                request_group_id =
+        //                    existingGroup.RequestGroupId
+        //            });
+        //        }
+
+        //        // =====================================================
+        //        // STEP 8: Create Request Group
+        //        // =====================================================
+
+        //        var group = new RequestGroup
+        //        {
+        //            StudentId = student.StudentId,
+
+        //            CourseId = dto.course_id,
+
+        //            CreatedDate = DateTime.Now,
+
+        //            Status = "Searching",
+
+        //            CurrentRequestId = null
+        //        };
+
+        //        db.RequestGroups.Add(group);
+
+        //        await db.SaveChangesAsync();
+
+        //        // =====================================================
+        //        // STEP 9: Create Tutor Requests
+        //        // =====================================================
+
+        //        string fullTime =
+        //            $"{dto.day}, {dto.time}";
+
+        //        DateTime now = DateTime.Now;
+
+        //        DateTime firstDeadline =
+        //            now.AddMinutes(2);
+
+        //        var requests = new List<Request>();
+
+        //        for (int i = 0; i < dto.tutor_ids.Count; i++)
+        //        {
+        //            int tutorId = dto.tutor_ids[i];
+
+        //            bool isFirstTutor = i == 0;
+
+        //            var tutorRequest = new Request
+        //            {
+        //                StudentId = student.StudentId,
+
+        //                TutorId = tutorId,
+
+        //                CourseId = dto.course_id,
+
+        //                Time = dto.time,
+
+        //                RequestDate = now,
+
+        //                Status = isFirstTutor
+        //                    ? "Pending"
+        //                    : "Queued",
+
+        //                ClassDate =
+        //                    DateOnly.FromDateTime(now),
+
+        //                Day = dto.day,
+
+        //                RequestType = "Normal",
+
+        //                ParentRequestId = null,
+
+        //                LearningMode =
+        //                    dto.learning_mode,
+
+        //                LearningDuration =
+        //                    dto.learning_duration,
+
+        //                LearningDurationUnit =
+        //                    dto.learning_duration_unit,
+
+        //                RequestGroupId =
+        //                    group.RequestGroupId,
+
+        //                TutorSequence = i + 1,
+
+        //                ResponseDeadline =
+        //                    isFirstTutor
+        //                        ? firstDeadline
+        //                        : null
+        //            };
+
+        //            requests.Add(tutorRequest);
+        //        }
+
+        //        db.Requests.AddRange(requests);
+
+        //        await db.SaveChangesAsync();
+
+        //        // =====================================================
+        //        // STEP 10: Current Request = First Tutor
+        //        // =====================================================
+
+        //        group.CurrentRequestId =
+        //            requests[0].RequestId;
+
+        //        await db.SaveChangesAsync();
+
+        //        await transaction.CommitAsync();
+
+        //        // =====================================================
+        //        // STEP 11: Response
+        //        // =====================================================
+
+        //        return Ok(new
+        //        {
+        //            message =
+        //                "Tutor request created successfully. The first tutor has 2 minutes to accept.",
+
+        //            request_group_id =
+        //                group.RequestGroupId,
+
+        //            request_id =
+        //                requests[0].RequestId,
+
+        //            current_tutor_id =
+        //                requests[0].TutorId,
+
+        //            current_tutor_sequence =
+        //                requests[0].TutorSequence,
+
+        //            total_tutors =
+        //                requests.Count,
+
+        //            response_deadline =
+        //                requests[0].ResponseDeadline,
+
+        //            status =
+        //                requests[0].Status
+        //        });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        await transaction.RollbackAsync();
+
+        //        return StatusCode(500, new
+        //        {
+        //            message =
+        //                "Error while creating tutor request.",
+
+        //            error =
+        //                ex.Message
+        //        });
+        //    }
+        //}
 
         [Authorize]
         [HttpGet("all-classes")]
@@ -7916,6 +8277,17 @@ namespace HouseofTutorAPI.Controllers
         public int? learning_duration { get; set; }
 
         public string? learning_duration_unit { get; set; }
+
+        // New accelerated course plan fields
+        // Normal request mein in fields ko send karna zaroori nahi.
+
+        public string? plan_type { get; set; }
+
+        public int? requested_duration_weeks { get; set; }
+
+        public int? requested_classes_per_week { get; set; }
+
+        public DateOnly? start_date { get; set; }
     }
     public class StudentSaveScheduleDto
     {

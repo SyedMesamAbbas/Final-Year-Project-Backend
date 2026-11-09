@@ -29,6 +29,8 @@ public partial class Tutor
 
     public virtual ICollection<LtRoomBooking> LtRoomBookings { get; set; } = new List<LtRoomBooking>();
 
+    public virtual ICollection<RequestCoursePlan> RequestCoursePlans { get; set; } = new List<RequestCoursePlan>();
+
     public virtual ICollection<Request> Requests { get; set; } = new List<Request>();
 
     public virtual ICollection<Schedule> Schedules { get; set; } = new List<Schedule>();

@@ -277,27 +277,27 @@ namespace HouseofTutorAPI.Controllers
         }
 
         //Tutor get Student Classes Request which are pending only
+
         [Authorize]
         [HttpGet("my-requests")]
         public async Task<IActionResult> GetMyRequests()
         {
             try
             {
-                // Get Logged In User
+                // STEP 1: Get logged-in user
                 var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
 
-                if (userIdClaim == null)
+                if (userIdClaim == null ||
+                    !int.TryParse(userIdClaim.Value, out int userId))
                 {
                     return Unauthorized(new
                     {
                         success = false,
-                        message = "Invalid token"
+                        message = "Invalid token."
                     });
                 }
 
-                int userId = Convert.ToInt32(userIdClaim.Value);
-
-                // Find Tutor
+                // STEP 2: Find tutor
                 var tutor = await db.Tutors
                     .FirstOrDefaultAsync(t => t.UserId == userId);
 
@@ -306,40 +306,167 @@ namespace HouseofTutorAPI.Controllers
                     return NotFound(new
                     {
                         success = false,
-                        message = "Tutor not found"
+                        message = "Tutor not found."
                     });
                 }
 
-                // Fetch Pending Requests
-                var requests = await db.Requests
-                    .Include(r => r.Student)
-                        .ThenInclude(s => s.User)
-                    .Include(r => r.Course)
-                    .Where(r =>
-                        r.TutorId == tutor.TutorId &&
-                        r.Status == "Pending")
-                    .OrderByDescending(r => r.RequestDate)
-                    .Select(r => new
-                    {
-                        request_id = r.RequestId,
-                        student_id = r.Student.StudentId,
-                        student_name = r.Student.User.FullName,
-                        course_id = r.CourseId,
-                        course_name = r.Course.CourseTitle,
-                        request_date = r.RequestDate,
-                        class_date = r.ClassDate,
-                        day = r.Day,
-                        time = r.Time,
-                        request_type = r.RequestType,
-                        status = r.Status,
-                        parent_request_id = r.ParentRequestId
-                    })
-                    .ToListAsync();
+                // STEP 3: Fetch pending requests and their course plans
+                // LEFT JOIN is used because Normal requests do not have
+                // a record in Request_Course_Plan.
 
+                var requests = await (
+                    from r in db.Requests
+
+                    join p in db.RequestCoursePlans
+                        on r.RequestGroupId equals (int?)p.RequestGroupId
+                        into planGroup
+
+                    from plan in planGroup.DefaultIfEmpty()
+
+                    where r.TutorId == tutor.TutorId
+                          && r.Status == "Pending"
+
+                    orderby r.RequestDate descending
+
+                    select new
+                    {
+                        // ---------------------------------
+                        // REQUEST INFORMATION
+                        // ---------------------------------
+
+                        request_id = r.RequestId,
+
+                        request_group_id = r.RequestGroupId,
+
+                        request_date = r.RequestDate,
+
+                        class_date = r.ClassDate,
+
+                        day = r.Day,
+
+                        time = r.Time,
+
+                        request_type = r.RequestType,
+
+                        status = r.Status,
+
+                        parent_request_id = r.ParentRequestId,
+
+                        tutor_sequence = r.TutorSequence,
+
+                        response_deadline = r.ResponseDeadline,
+
+                        // ---------------------------------
+                        // STUDENT INFORMATION
+                        // ---------------------------------
+
+                        student_id = r.Student.StudentId,
+
+                        student_name = r.Student.User.FullName,
+
+                        student_email = r.Student.User.Email,
+
+                        student_phone = r.Student.User.Phone,
+
+                        // ---------------------------------
+                        // COURSE INFORMATION
+                        // ---------------------------------
+
+                        course_id = r.CourseId,
+
+                        course_name = r.Course.CourseTitle,
+
+                        standard_duration_weeks =
+                            r.Course.StandardDurationWeeks,
+
+                        standard_classes_per_week =
+                            r.Course.StandardClassesPerWeek,
+
+                        // ---------------------------------
+                        // LEARNING INFORMATION
+                        // ---------------------------------
+
+                        learning_mode = r.LearningMode,
+
+                        learning_duration = r.LearningDuration,
+
+                        learning_duration_unit = r.LearningDurationUnit,
+
+                        // ---------------------------------
+                        // COURSE PLAN INFORMATION
+                        // ---------------------------------
+
+                        has_course_plan = plan != null,
+
+                        plan_type = plan == null
+                            ? "Normal"
+                            : plan.PlanType,
+
+                        original_duration_weeks = plan == null
+                            ? (int?)null
+                            : plan.OriginalDurationWeeks,
+
+                        original_classes_per_week = plan == null
+                            ? (int?)null
+                            : plan.OriginalClassesPerWeek,
+
+                        requested_duration_weeks = plan == null
+                            ? (int?)null
+                            : plan.RequestedDurationWeeks,
+
+                        requested_classes_per_week = plan == null
+                            ? (int?)null
+                            : plan.RequestedClassesPerWeek,
+
+                        total_classes = plan == null
+                            ? (int?)null
+                            : plan.TotalClasses,
+
+                        plan_start_date = plan == null
+                            ? (DateOnly?)null
+                            : plan.StartDate,
+
+                        target_end_date = plan == null
+                            ? (DateOnly?)null
+                            : plan.TargetEndDate,
+
+                        plan_status = plan == null
+                            ? null
+                            : plan.Status,
+
+                        tutor_remarks = plan == null
+                            ? null
+                            : plan.TutorRemarks,
+
+                        approved_date = plan == null
+                            ? (DateTime?)null
+                            : plan.ApprovedDate,
+
+                        approved_by_tutor_id = plan == null
+                            ? (int?)null
+                            : plan.ApprovedByTutorId,
+
+                        class_duration_minutes = plan == null
+                            ? (int?)null
+                            : plan.ClassDurationMinutes,
+
+                        plan_created_date = plan == null
+                            ? (DateTime?)null
+                            : plan.CreatedDate
+                    }
+                ).ToListAsync();
+
+                // STEP 4: Return response
                 return Ok(new
                 {
                     success = true,
+
                     message = "Pending requests fetched successfully.",
+
+                    tutor_id = tutor.TutorId,
+
+                    total_requests = requests.Count,
+
                     data = requests
                 });
             }
@@ -348,72 +475,451 @@ namespace HouseofTutorAPI.Controllers
                 return StatusCode(500, new
                 {
                     success = false,
-                    message = ex.Message
+
+                    message = "Error while fetching tutor requests.",
+
+                    error = ex.InnerException?.Message ?? ex.Message
                 });
             }
         }
 
-        //Tutor accept student classes request for nomal
+
         //[Authorize]
         //[HttpPut("accept-request/{id}")]
         //public async Task<IActionResult> AcceptRequest(int id)
         //{
-        //    var request = await db.Requests.FindAsync(id);
+        //    var (request, error) = await GetOwnPendingRequest(id);
 
-        //    if (request == null)
-        //        return NotFound(new { message = "Request not found" });
+        //    if (error != null)
+        //        return error;
 
-        //    request.Status = "Accepted";
+        //    request!.Status = "Accepted";
+        //    request.ResponseDeadline = null;
+
+        //    // Close the request group and cancel the remaining tutors in the queue
+        //    if (request.RequestGroupId.HasValue)
+        //    {
+        //        var group = await db.RequestGroups
+        //            .FirstOrDefaultAsync(g => g.RequestGroupId == request.RequestGroupId);
+
+        //        if (group != null)
+        //        {
+        //            group.Status = "Accepted";
+        //            group.CurrentRequestId = request.RequestId;
+
+        //            var others = await db.Requests
+        //                .Where(r =>
+        //                    r.RequestGroupId == group.RequestGroupId &&
+        //                    r.RequestId != request.RequestId &&
+        //                    (r.Status == "Queued" || r.Status == "Pending"))
+        //                .ToListAsync();
+
+        //            foreach (var other in others)
+        //            {
+        //                other.Status = "Cancelled";
+        //                other.ResponseDeadline = null;
+        //            }
+        //        }
+        //    }
 
         //    await db.SaveChangesAsync();
 
         //    return Ok(new { message = "Request accepted" });
         //}
 
-//Here are the three functions I changed, in HouseofTutor/Controllers/TutorController.cs, lines 349–471.
-//Tutor accept student classes request for nomal
         [Authorize]
         [HttpPut("accept-request/{id}")]
         public async Task<IActionResult> AcceptRequest(int id)
         {
-            var (request, error) = await GetOwnPendingRequest(id);
+            using var transaction = await db.Database.BeginTransactionAsync();
 
-            if (error != null)
-                return error;
-
-            request!.Status = "Accepted";
-            request.ResponseDeadline = null;
-
-            // Close the request group and cancel the remaining tutors in the queue
-            if (request.RequestGroupId.HasValue)
+            try
             {
-                var group = await db.RequestGroups
-                    .FirstOrDefaultAsync(g => g.RequestGroupId == request.RequestGroupId);
+                var (request, error) = await GetOwnPendingRequest(id);
 
-                if (group != null)
+                if (error != null)
+                    return error;
+
+                request = request!;
+
+                RequestCoursePlan? plan = null;
+                RequestGroup? group = null;
+
+                if (request.RequestGroupId.HasValue)
                 {
+                    group = await db.RequestGroups
+                        .FirstOrDefaultAsync(g =>
+                            g.RequestGroupId == request.RequestGroupId.Value);
+
+                    if (group != null)
+                    {
+                        plan = await db.RequestCoursePlans
+                            .FirstOrDefaultAsync(p =>
+                                p.RequestGroupId == group.RequestGroupId);
+                    }
+                }
+
+                // =====================================================
+                // ACCELERATED COURSE PLAN
+                // =====================================================
+
+                if (plan != null &&
+                    string.Equals(
+                        plan.PlanType,
+                        "Accelerated",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    if (group == null ||
+                        !request.StudentId.HasValue ||
+                        !request.TutorId.HasValue ||
+                        !request.CourseId.HasValue)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Request information is incomplete."
+                        });
+                    }
+
+                    if (!plan.StartDate.HasValue ||
+                        plan.RequestedDurationWeeks <= 0 ||
+                        plan.RequestedClassesPerWeek <= 0)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Accelerated plan information is incomplete."
+                        });
+                    }
+
+                    int requiredClasses =
+                        plan.RequestedDurationWeeks *
+                        plan.RequestedClassesPerWeek;
+
+                    if (requiredClasses != plan.TotalClasses)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "The accelerated plan total classes do not match the saved course plan."
+                        });
+                    }
+
+                    // Get tutor and student schedules
+                    var tutorSchedules = await db.Schedules
+                        .Where(s => s.TutorId == request.TutorId)
+                        .ToListAsync();
+
+                    var studentSchedules = await db.StudentSchedules
+                        .Where(s => s.StudentId == request.StudentId)
+                        .ToListAsync();
+
+                    // Find common weekly slots
+                    var commonSlots = (
+                        from tutorSlot in tutorSchedules
+                        from studentSlot in studentSchedules
+                        where
+                            !string.IsNullOrWhiteSpace(tutorSlot.Day) &&
+                            !string.IsNullOrWhiteSpace(studentSlot.Day) &&
+                            !string.IsNullOrWhiteSpace(tutorSlot.Time) &&
+                            !string.IsNullOrWhiteSpace(studentSlot.Time) &&
+
+                            NormalizePlanDay(tutorSlot.Day) ==
+                            NormalizePlanDay(studentSlot.Day) &&
+
+                            NormalizePlanTime(tutorSlot.Time) ==
+                            NormalizePlanTime(studentSlot.Time)
+
+                        select new
+                        {
+                            Day = tutorSlot.Day!,
+                            Time = tutorSlot.Time!,
+
+                            TutorStartDate = tutorSlot.StartDate,
+                            TutorEndDate = tutorSlot.EndDate,
+
+                            StudentStartDate = studentSlot.StartDate,
+                            StudentEndDate = studentSlot.EndDate
+                        }
+                    )
+                    .GroupBy(x =>
+                        NormalizePlanDay(x.Day) + "|" +
+                        NormalizePlanTime(x.Time))
+                    .Select(g => g.First())
+                    .ToList();
+
+                    if (commonSlots.Count < plan.RequestedClassesPerWeek)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Tutor and student do not have enough common weekly slots for this accelerated plan.",
+                            required_slots_per_week = plan.RequestedClassesPerWeek,
+                            available_common_slots = commonSlots.Count
+                        });
+                    }
+
+                    // Select required common weekly slots
+                    var selectedSlots = commonSlots
+                        .Take(plan.RequestedClassesPerWeek)
+                        .ToList();
+
+                    var sessions = new List<(DateOnly Date, string Day, string Time)>();
+
+                    DateOnly startDate = plan.StartDate.Value;
+
+                    // Generate all weekly classes
+                    for (int week = 0; week < plan.RequestedDurationWeeks; week++)
+                    {
+                        foreach (var slot in selectedSlots)
+                        {
+                            DateOnly classDate = GetPlanDateForDay(
+                                startDate.AddDays(week * 7),
+                                slot.Day
+                            );
+
+                            // Check tutor schedule date range
+                            bool tutorScheduleActive =
+                                (!slot.TutorStartDate.HasValue ||
+                                 classDate >= slot.TutorStartDate.Value) &&
+                                (!slot.TutorEndDate.HasValue ||
+                                 classDate <= slot.TutorEndDate.Value);
+
+                            // Check student schedule date range
+                            bool studentScheduleActive =
+                                (!slot.StudentStartDate.HasValue ||
+                                 classDate >= slot.StudentStartDate.Value) &&
+                                (!slot.StudentEndDate.HasValue ||
+                                 classDate <= slot.StudentEndDate.Value);
+
+                            if (!tutorScheduleActive || !studentScheduleActive)
+                            {
+                                return BadRequest(new
+                                {
+                                    message = "A selected common schedule is not active for the complete accelerated plan.",
+                                    day = slot.Day,
+                                    time = slot.Time,
+                                    date = classDate
+                                });
+                            }
+
+                            // Check existing accepted classes
+                            bool isBusy = await db.Requests.AnyAsync(r =>
+                                r.Status == "Accepted" &&
+                                r.ClassDate == classDate &&
+                                r.Time == slot.Time &&
+                                (
+                                    r.TutorId == request.TutorId ||
+                                    r.StudentId == request.StudentId
+                                ));
+
+                            if (isBusy)
+                            {
+                                return BadRequest(new
+                                {
+                                    message = "A schedule conflict was found. Please update the student or tutor schedule and try again.",
+                                    day = slot.Day,
+                                    time = slot.Time,
+                                    date = classDate
+                                });
+                            }
+
+                            sessions.Add((
+                                classDate,
+                                slot.Day,
+                                slot.Time
+                            ));
+                        }
+                    }
+
+                    if (sessions.Count != plan.TotalClasses)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Could not generate all classes for the accelerated plan.",
+                            expected_classes = plan.TotalClasses,
+                            generated_classes = sessions.Count
+                        });
+                    }
+
+                    // Sort classes by date
+                    sessions = sessions
+                        .OrderBy(s => s.Date)
+                        .ThenBy(s => NormalizePlanTime(s.Time))
+                        .ToList();
+
+                    // Use existing pending request for the first class
+                    var firstSession = sessions[0];
+
+                    request.Status = "Accepted";
+                    request.ResponseDeadline = null;
+                    request.ClassDate = firstSession.Date;
+                    request.Day = firstSession.Day;
+                    request.Time = firstSession.Time;
+                    request.RequestType = "Normal";
+                    request.RequestDate = DateTime.Now;
+
+                    // Create remaining class requests
+                    var additionalRequests = new List<Request>();
+
+                    for (int i = 1; i < sessions.Count; i++)
+                    {
+                        var session = sessions[i];
+
+                        additionalRequests.Add(new Request
+                        {
+                            StudentId = request.StudentId,
+                            TutorId = request.TutorId,
+                            CourseId = request.CourseId,
+
+                            RequestDate = DateTime.Now,
+                            Status = "Accepted",
+
+                            Time = session.Time,
+                            ClassDate = session.Date,
+                            Day = session.Day,
+
+                            RequestType = "Normal",
+                            ParentRequestId = null,
+
+                            LearningMode = request.LearningMode,
+                            LearningDuration = request.LearningDuration,
+                            LearningDurationUnit = request.LearningDurationUnit,
+
+                            RequestGroupId = request.RequestGroupId,
+                            TutorSequence = request.TutorSequence,
+
+                            ResponseDeadline = null
+                        });
+                    }
+
+                    if (additionalRequests.Count > 0)
+                    {
+                        db.Requests.AddRange(additionalRequests);
+                    }
+
+                    // =================================================
+                    // FIX: APPROVE COURSE PLAN
+                    // =================================================
+
+                    // Request status and Course Plan status are different.
+                    // Request uses "Accepted".
+                    // Course Plan uses "Approved".
+
+                    plan.TargetEndDate = sessions.Max(s => s.Date);
+
+                    plan.Status = "Approved";
+                    plan.ApprovedDate = DateTime.Now;
+                    plan.ApprovedByTutorId = request.TutorId.Value;
+
+                    // Close request group
                     group.Status = "Accepted";
                     group.CurrentRequestId = request.RequestId;
 
-                    var others = await db.Requests
+                    // Cancel other tutors in the same request group
+                    var otherRequests = await db.Requests
                         .Where(r =>
                             r.RequestGroupId == group.RequestGroupId &&
                             r.RequestId != request.RequestId &&
                             (r.Status == "Queued" || r.Status == "Pending"))
                         .ToListAsync();
 
-                    foreach (var other in others)
+                    foreach (var other in otherRequests)
                     {
                         other.Status = "Cancelled";
                         other.ResponseDeadline = null;
                     }
+
+                    await db.SaveChangesAsync();
+
+                    await transaction.CommitAsync();
+
+                    return Ok(new
+                    {
+                        success = true,
+                        message = "Accelerated course plan approved and classes scheduled successfully.",
+
+                        request_group_id = group.RequestGroupId,
+
+                        plan_id = plan.PlanId,
+
+                        plan_type = plan.PlanType,
+                        plan_status = plan.Status,
+
+                        approved_date = plan.ApprovedDate,
+                        approved_by_tutor_id = plan.ApprovedByTutorId,
+
+                        total_classes = plan.TotalClasses,
+
+                        classes_per_week = plan.RequestedClassesPerWeek,
+
+                        duration_weeks = plan.RequestedDurationWeeks,
+
+                        start_date = plan.StartDate,
+
+                        target_end_date = plan.TargetEndDate,
+
+                        generated_classes = sessions.Select(s => new
+                        {
+                            date = s.Date,
+                            day = s.Day,
+                            time = s.Time
+                        }).ToList()
+                    });
                 }
+
+                // =====================================================
+                // NORMAL REQUEST
+                // =====================================================
+
+                request.Status = "Accepted";
+                request.ResponseDeadline = null;
+
+                if (request.RequestGroupId.HasValue)
+                {
+                    group ??= await db.RequestGroups
+                        .FirstOrDefaultAsync(g =>
+                            g.RequestGroupId == request.RequestGroupId.Value);
+
+                    if (group != null)
+                    {
+                        group.Status = "Accepted";
+                        group.CurrentRequestId = request.RequestId;
+
+                        var others = await db.Requests
+                            .Where(r =>
+                                r.RequestGroupId == group.RequestGroupId &&
+                                r.RequestId != request.RequestId &&
+                                (r.Status == "Queued" || r.Status == "Pending"))
+                            .ToListAsync();
+
+                        foreach (var other in others)
+                        {
+                            other.Status = "Cancelled";
+                            other.ResponseDeadline = null;
+                        }
+                    }
+                }
+
+                await db.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Request accepted successfully."
+                });
             }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
 
-            await db.SaveChangesAsync();
-
-            return Ok(new { message = "Request accepted" });
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = "Error while accepting request.",
+                    error = ex.InnerException?.Message ?? ex.Message
+                });
+            }
         }
+
 
         //Tutor reject student classes request for nomal
         [Authorize]
@@ -3547,6 +4053,76 @@ namespace HouseofTutorAPI.Controllers
         {
             return time.Replace(" ", "")
                        .ToLower();
+        }
+
+        private string NormalizePlanDay(string? day)
+        {
+            if (string.IsNullOrWhiteSpace(day))
+                return "";
+
+            string value = day.Trim().ToLower();
+
+            return value switch
+            {
+                "monday" => "mon",
+                "mon" => "mon",
+
+                "tuesday" => "tue",
+                "tue" => "tue",
+                "tues" => "tue",
+
+                "wednesday" => "wed",
+                "wed" => "wed",
+
+                "thursday" => "thu",
+                "thu" => "thu",
+                "thur" => "thu",
+                "thurs" => "thu",
+
+                "friday" => "fri",
+                "fri" => "fri",
+
+                "saturday" => "sat",
+                "sat" => "sat",
+
+                "sunday" => "sun",
+                "sun" => "sun",
+
+                _ => value.Length >= 3 ? value.Substring(0, 3) : value
+            };
+        }
+
+        private string NormalizePlanTime(string? time)
+        {
+            if (string.IsNullOrWhiteSpace(time))
+                return "";
+
+            return time
+                .Replace(" ", "")
+                .ToLower();
+        }
+
+        private DateOnly GetPlanDateForDay(DateOnly fromDate, string day)
+        {
+            string normalizedDay = NormalizePlanDay(day);
+
+            DayOfWeek targetDay = normalizedDay switch
+            {
+                "mon" => DayOfWeek.Monday,
+                "tue" => DayOfWeek.Tuesday,
+                "wed" => DayOfWeek.Wednesday,
+                "thu" => DayOfWeek.Thursday,
+                "fri" => DayOfWeek.Friday,
+                "sat" => DayOfWeek.Saturday,
+                "sun" => DayOfWeek.Sunday,
+
+                _ => throw new Exception("Invalid schedule day: " + day)
+            };
+
+            int daysToAdd =
+                ((int)targetDay - (int)fromDate.DayOfWeek + 7) % 7;
+
+            return fromDate.AddDays(daysToAdd);
         }
 
         //Check Busy Slot

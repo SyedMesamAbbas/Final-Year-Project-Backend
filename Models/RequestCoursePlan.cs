@@ -29,5 +29,17 @@ public partial class RequestCoursePlan
 
     public DateTime? CreatedDate { get; set; }
 
+    public string? TutorRemarks { get; set; }
+
+    public DateTime? ApprovedDate { get; set; }
+
+    public int? ApprovedByTutorId { get; set; }
+
+    public int? ClassDurationMinutes { get; set; }
+
+    public virtual Tutor? ApprovedByTutor { get; set; }
+
+    public virtual ICollection<CoursePlanSession> CoursePlanSessions { get; set; } = new List<CoursePlanSession>();
+
     public virtual RequestGroup RequestGroup { get; set; } = null!;
 }

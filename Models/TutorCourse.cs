@@ -36,6 +36,4 @@ public partial class TutorCourse
     public virtual User? VerifiedByNavigation { get; set; }
 
     public virtual ICollection<ProgrammingLanguage> Languages { get; set; } = new List<ProgrammingLanguage>();
-
-    public virtual ICollection<TutorCourseProgrammingLanguage> TutorCourseProgrammingLanguages { get; set; } = new List<TutorCourseProgrammingLanguage>();
 }
