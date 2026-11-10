@@ -40,16 +40,44 @@ CREATE TABLE Student (
     FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
 
+
 CREATE TABLE Course (
     course_id INT PRIMARY KEY IDENTITY(1,1),
-    course_title VARCHAR(100),
-    admin_set_min_hourly_rate DECIMAL(10,2),
-    admin_set_max_hourly_rate DECIMAL(10,2),
-    has_lab_component BIT NOT NULL CONSTRAINT DF_Course_HasLab DEFAULT 0,
-    standard_duration_weeks INT NULL,
-    standard_classes_per_week INT NULL,
-);
 
+    course_title VARCHAR(100) NOT NULL,
+
+    admin_set_min_hourly_rate DECIMAL(10,2),
+
+    admin_set_max_hourly_rate DECIMAL(10,2),
+
+    has_lab_component BIT NOT NULL
+        CONSTRAINT DF_Course_HasLab DEFAULT 0,
+
+    -- Duration set by Admin
+    standard_duration_weeks INT NOT NULL,
+
+    -- Classes per week set by Admin
+    standard_classes_per_week INT NOT NULL,
+
+    -- Automatically calculates total classes
+    total_standard_classes AS
+    (
+        standard_duration_weeks * standard_classes_per_week
+    ) PERSISTED,
+
+    CONSTRAINT CK_Course_Duration
+        CHECK (standard_duration_weeks > 0),
+
+    CONSTRAINT CK_Course_ClassesPerWeek
+        CHECK (standard_classes_per_week > 0),
+
+    CONSTRAINT CK_Course_HourlyRate
+        CHECK (
+            admin_set_min_hourly_rate IS NULL
+            OR admin_set_max_hourly_rate IS NULL
+            OR admin_set_min_hourly_rate <= admin_set_max_hourly_rate
+        )
+);
 CREATE TABLE Schedule (
     schedule_id INT PRIMARY KEY IDENTITY(1,1),
     tutor_id INT,
@@ -694,12 +722,24 @@ Select * from LT_Room
 Select * from LT_Room_Schedule
 Select * from Student_Friend
 Select * from Study_Group_Invitation
+Select * from Request_Course_Plan
+
 
 Delete Request_Group where request_group_id=1007
-Delete Request where request_id=5068
+Delete Request_Group where request_group_id=1013
+Delete Request_Course_Plan where request_group_id=1013
+Delete Request where request_group_id=1013
+Delete Request where request_id=5118
+Delete Request where tutor_id=2 and student_id=2
 
-update Request_Group set status='Searching' where request_group_id=1009
-update Request set status='Pending' where request_id=5070
+update Request set status='Pending' where request_id=5121
+update Request set status='Pending' where request_id=5122
+
+Delete Request where request_id in (5123,5124,5125,5126,5127,5128,5129,5130,5131,5132,5133,5134,5135,5136,5137,5138,5139,5140,5141,5142,5143,5144,5145,5146,5147,5148,5149,5150,5151,5152)
+
+
+update Request_Group set status='Searching' where request_group_id=1010
+update Request set status='Pending' where request_id=5116
 
 update Request set Status='Accepted' where request_id=4048
 update Student_Friend set status='Pending' where friendship_id=1
@@ -726,9 +766,9 @@ update student set Longitude='73.0479' where student_id=1030
 
 delete Request where request_id=4048
 
+Delete Request where class_date='2026-11-20'
 
-
-
+Select * from Request where class_date='2026-11-20'
 Select * from Request
 Select * from Schedule
 Select * from Student_Schedule
@@ -738,10 +778,6 @@ Update Request set Time='11:00-12:00 pm' where request_id=4048
 
 Update Request set Time='12:00-1:00 pm' where request_id in (3036,3039,3040,3041)
 Update Request set Time='10:00-11:00 am' where request_id in (3037,3038)
-
-
-
-
 
 
 
@@ -855,6 +891,15 @@ VALUES
 ('Kotlin'),
 ('Swift'),
 ('SQL');
+
+
+
+
+
+
+
+
+
 
 
 

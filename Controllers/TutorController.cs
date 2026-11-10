@@ -712,9 +712,12 @@ namespace HouseofTutorAPI.Controllers
                     // =================================================
 
                     var sessions =
-                        new List<(DateOnly Date, string Day, string Time)>();
+    new List<(DateOnly Date, string Day, string Time)>();
 
                     DateOnly startDate = plan.StartDate.Value;
+
+                    int generationLoopCount = 0;
+                    int sessionAddCount = 0;
 
                     for (int week = 0;
                          week < plan.RequestedDurationWeeks;
@@ -722,77 +725,59 @@ namespace HouseofTutorAPI.Controllers
                     {
                         foreach (var slot in selectedSlots)
                         {
+                            generationLoopCount++;
+
                             DateOnly classDate = GetPlanDateForDay(
                                 startDate.AddDays(week * 7),
                                 slot.Day
                             );
 
-                            // Check tutor schedule date range
-                            bool tutorScheduleActive =
-                                (!slot.TutorStartDate.HasValue ||
-                                 classDate >= slot.TutorStartDate.Value) &&
+                            // Keep your existing tutor schedule validation here.
 
-                                (!slot.TutorEndDate.HasValue ||
-                                 classDate <= slot.TutorEndDate.Value);
+                            // Keep your existing student schedule validation here.
 
-                            // Check student schedule date range
-                            bool studentScheduleActive =
-                                (!slot.StudentStartDate.HasValue ||
-                                 classDate >= slot.StudentStartDate.Value) &&
-
-                                (!slot.StudentEndDate.HasValue ||
-                                 classDate <= slot.StudentEndDate.Value);
-
-                            if (!tutorScheduleActive ||
-                                !studentScheduleActive)
-                            {
-                                return BadRequest(new
-                                {
-                                    message = "Selected schedule is not active for the complete course plan.",
-
-                                    day = slot.Day,
-
-                                    time = slot.Time,
-
-                                    date = classDate
-                                });
-                            }
-
-                            // Check existing accepted classes
-                            bool isBusy = await db.Requests.AnyAsync(r =>
-                                r.Status == "Accepted" &&
-
-                                r.ClassDate == classDate &&
-
-                                r.Time == slot.Time &&
-
-                                (
-                                    r.TutorId == request.TutorId ||
-                                    r.StudentId == request.StudentId
-                                ));
-
-                            if (isBusy)
-                            {
-                                return BadRequest(new
-                                {
-                                    message = "A schedule conflict was found. Please update the tutor or student schedule.",
-
-                                    day = slot.Day,
-
-                                    time = slot.Time,
-
-                                    date = classDate
-                                });
-                            }
+                            // Keep your existing accepted-request conflict check here.
 
                             sessions.Add((
                                 classDate,
                                 slot.Day,
                                 slot.Time
                             ));
+
+                            sessionAddCount++;
                         }
                     }
 
+                    if (sessions.Count != plan.TotalClasses)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "Could not generate all required classes.",
+
+                            plan_id = plan.PlanId,
+
+                            requested_duration_weeks =
+                                plan.RequestedDurationWeeks,
+
+                            requested_classes_per_week =
+                                plan.RequestedClassesPerWeek,
+
+                            selected_slots_count =
+                                selectedSlots.Count,
+
+                            generation_loop_count =
+                                generationLoopCount,
+
+                            session_add_count =
+                                sessionAddCount,
+
+                            sessions_count =
+                                sessions.Count,
+
+                            expected_classes =
+                                plan.TotalClasses
+                        });
+                    }
                     // =================================================
                     // STEP 6: VALIDATE TOTAL GENERATED CLASSES
                     // =================================================
@@ -802,6 +787,40 @@ namespace HouseofTutorAPI.Controllers
                         return BadRequest(new
                         {
                             message = "Could not generate all required classes.",
+
+                            plan_id = plan.PlanId,
+
+                            request_group_id = plan.RequestGroupId,
+
+                            plan_type = plan.PlanType,
+
+                            original_duration_weeks =
+                                plan.OriginalDurationWeeks,
+
+                            original_classes_per_week =
+                                plan.OriginalClassesPerWeek,
+
+                            requested_duration_weeks =
+                                plan.RequestedDurationWeeks,
+
+                            requested_classes_per_week =
+                                plan.RequestedClassesPerWeek,
+
+                            total_classes = plan.TotalClasses,
+
+                            calculated_expected_classes =
+                                plan.RequestedDurationWeeks *
+                                plan.RequestedClassesPerWeek,
+
+                            common_slots_count = commonSlots.Count,
+
+                            selected_slots_count = selectedSlots.Count,
+
+                            selected_slots = selectedSlots.Select(s => new
+                            {
+                                day = s.Day,
+                                time = s.Time
+                            }).ToList(),
 
                             expected_classes = plan.TotalClasses,
 
