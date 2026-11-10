@@ -624,26 +624,29 @@ namespace HouseofTutorAPI.Controllers
                     .Select(c => new
                     {
                         id = c.CourseId,
-
                         courseTitle = c.CourseTitle,
 
                         minRate = c.AdminSetMinHourlyRate,
-
                         maxRate = c.AdminSetMaxHourlyRate,
 
-                        // Get all course codes related to this course
+                        // Admin course duration
+                        standardDurationWeeks = c.StandardDurationWeeks,
+
+                        // Admin classes per week
+                        standardClassesPerWeek = c.StandardClassesPerWeek,
+
+                        // Automatically calculated total classes
+                        totalStandardClasses =
+                            c.StandardDurationWeeks * c.StandardClassesPerWeek,
+
                         courseCodes = db.CourseCodes
                             .Where(cc => cc.CourseId == c.CourseId)
                             .Select(cc => new
                             {
                                 courseCodeId = cc.CourseCodeId,
-
                                 institute = cc.Institute,
-
                                 courseCode = cc.CourseCode1,
-
                                 program = cc.Program,
-
                                 description = cc.Description
                             })
                             .ToList()
@@ -657,23 +660,21 @@ namespace HouseofTutorAPI.Controllers
                 return StatusCode(500, new
                 {
                     message = "Error loading subjects",
-                    error = ex.Message
+                    error = ex.InnerException?.Message ?? ex.Message
                 });
             }
         }
-
 
         [HttpPost("add-subject")]
         public async Task<IActionResult> AddSubject([FromBody] AddSubjectDTO dto)
         {
             try
             {
-                // 1. Validate request
                 if (dto == null)
                 {
                     return BadRequest(new
                     {
-                        message = "Invalid request"
+                        message = "Invalid request."
                     });
                 }
 
@@ -681,7 +682,7 @@ namespace HouseofTutorAPI.Controllers
                 {
                     return BadRequest(new
                     {
-                        message = "Course title is required"
+                        message = "Course title is required."
                     });
                 }
 
@@ -689,7 +690,7 @@ namespace HouseofTutorAPI.Controllers
                 {
                     return BadRequest(new
                     {
-                        message = "Institute name is required"
+                        message = "Institute name is required."
                     });
                 }
 
@@ -697,87 +698,112 @@ namespace HouseofTutorAPI.Controllers
                 {
                     return BadRequest(new
                     {
-                        message = "Course code is required"
+                        message = "Course code is required."
                     });
                 }
 
-                // 2. Clean input values
-                string courseTitle = dto.CourseTitle.Trim();
-                string institute = dto.Institute.Trim();
-                string courseCode = dto.CourseCode.Trim().ToUpper();
-                string program = string.IsNullOrWhiteSpace(dto.Program)? null: dto.Program.Trim();
-                string description = string.IsNullOrWhiteSpace(dto.Description)? null: dto.Description.Trim();
+                // Validate Admin course duration
+                if (dto.StandardDurationWeeks <= 0)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Course duration must be greater than zero."
+                    });
+                }
 
-                // 3. Check whether this university course code already exists
+                // Validate weekly classes
+                if (dto.StandardClassesPerWeek <= 0)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Classes per week must be greater than zero."
+                    });
+                }
+
+                string courseTitle = dto.CourseTitle.Trim();
+
+                string institute = dto.Institute.Trim();
+
+                string courseCode = dto.CourseCode.Trim().ToUpper();
+
+                string program = string.IsNullOrWhiteSpace(dto.Program)
+                    ? null
+                    : dto.Program.Trim();
+
+                string description = string.IsNullOrWhiteSpace(dto.Description)
+                    ? null
+                    : dto.Description.Trim();
+
+                // Check duplicate university course code
                 var existingCourseCode = await db.CourseCodes
                     .FirstOrDefaultAsync(c =>
                         c.Institute.ToLower() == institute.ToLower() &&
                         c.CourseCode1.ToLower() == courseCode.ToLower() &&
                         (
                             (c.Program == null && program == null) ||
-                            (c.Program != null && program != null &&
-                             c.Program.ToLower() == program.ToLower())
+                            (
+                                c.Program != null &&
+                                program != null &&
+                                c.Program.ToLower() == program.ToLower()
+                            )
                         ));
 
                 if (existingCourseCode != null)
                 {
                     return BadRequest(new
                     {
-                        message = "This course code already exists for this institute and program"
+                        message = "This course code already exists for this institute and program."
                     });
                 }
 
-                // 4. Check whether the common course already exists
+                // Check common course
                 var course = await db.Courses
                     .FirstOrDefaultAsync(c =>
                         c.CourseTitle.ToLower() == courseTitle.ToLower());
 
                 bool courseCreated = false;
 
-                // 5. Create Course if it does not exist
+                // Create new common course
                 if (course == null)
                 {
-                    // Validate minimum rate
-                    if (!dto.MinRate.HasValue)
+                    if (!dto.MinRate.HasValue ||
+                        !dto.MaxRate.HasValue)
                     {
                         return BadRequest(new
                         {
-                            message = "Minimum rate is required for a new course"
+                            message = "Minimum and maximum rates are required for a new course."
                         });
                     }
 
-                    // Validate maximum rate
-                    if (!dto.MaxRate.HasValue)
+                    if (dto.MinRate.Value < 0 ||
+                        dto.MaxRate.Value < 0)
                     {
                         return BadRequest(new
                         {
-                            message = "Maximum rate is required for a new course"
+                            message = "Rates cannot be negative."
                         });
                     }
 
-                    // Validate rates
-                    if (dto.MinRate.Value < 0 || dto.MaxRate.Value < 0)
-                    {
-                        return BadRequest(new
-                        {
-                            message = "Rates cannot be negative"
-                        });
-                    }
-
-                    // Validate Min <= Max
                     if (dto.MinRate.Value > dto.MaxRate.Value)
                     {
                         return BadRequest(new
                         {
-                            message = "Minimum rate cannot be greater than maximum rate"
+                            message = "Minimum rate cannot be greater than maximum rate."
                         });
                     }
 
                     course = new Course
                     {
                         CourseTitle = courseTitle,
+
                         AdminSetMinHourlyRate = dto.MinRate.Value,
-                        AdminSetMaxHourlyRate = dto.MaxRate.Value
+
+                        AdminSetMaxHourlyRate = dto.MaxRate.Value,
+
+                        // NEW ADMIN SETTINGS
+                        StandardDurationWeeks = dto.StandardDurationWeeks,
+
+                        StandardClassesPerWeek = dto.StandardClassesPerWeek
                     };
 
                     db.Courses.Add(course);
@@ -786,39 +812,72 @@ namespace HouseofTutorAPI.Controllers
 
                     courseCreated = true;
                 }
+                else
+                {
+                    // Update the common course's standard plan.
+                    // Existing student plans remain unchanged because
+                    // their duration is saved separately in RequestCoursePlan.
 
-                // 6. Add university-specific Course Code
+                    course.StandardDurationWeeks =
+                        dto.StandardDurationWeeks;
+
+                    course.StandardClassesPerWeek =
+                        dto.StandardClassesPerWeek;
+
+                    await db.SaveChangesAsync();
+                }
+
+                // Add university-specific course code
                 var courseCodeRecord = new CourseCode
                 {
                     CourseId = course.CourseId,
+
                     Institute = institute,
+
                     CourseCode1 = courseCode,
+
                     Program = program,
+
                     Description = description
                 };
 
                 db.CourseCodes.Add(courseCodeRecord);
 
-                // 7. Save course code
                 await db.SaveChangesAsync();
 
-                // 8. Return response
+                int totalClasses =
+                    dto.StandardDurationWeeks *dto.StandardClassesPerWeek;
+
                 return Ok(new
                 {
-                    message = "Course and university course code added successfully",
+                    success = true,
+
+                    message = "Course added successfully.",
 
                     courseCreated = courseCreated,
 
                     courseId = course.CourseId,
+
                     courseTitle = course.CourseTitle,
 
                     minRate = course.AdminSetMinHourlyRate,
+
                     maxRate = course.AdminSetMaxHourlyRate,
 
+                    standardDurationWeeks = course.StandardDurationWeeks,
+
+                    standardClassesPerWeek = course.StandardClassesPerWeek,
+
+                    totalStandardClasses = totalClasses,
+
                     courseCodeId = courseCodeRecord.CourseCodeId,
+
                     institute = courseCodeRecord.Institute,
+
                     courseCode = courseCodeRecord.CourseCode1,
+
                     program = courseCodeRecord.Program,
+
                     description = courseCodeRecord.Description
                 });
             }
@@ -826,7 +885,8 @@ namespace HouseofTutorAPI.Controllers
             {
                 return StatusCode(500, new
                 {
-                    message = "Error adding course",
+                    message = "Error adding course.",
+
                     error = ex.InnerException?.Message ?? ex.Message
                 });
             }
@@ -1519,18 +1579,23 @@ namespace HouseofTutorAPI.Controllers
     {
         public string CourseTitle { get; set; }
 
-        // University-specific course information
         public string Institute { get; set; }
+
         public string CourseCode { get; set; }
 
-        // Optional program, e.g. BS Software Engineering
         public string Program { get; set; }
 
         public string Description { get; set; }
 
-        // Required only when creating a completely new Course
         public decimal? MinRate { get; set; }
+
         public decimal? MaxRate { get; set; }
+
+        // NEW: Admin course duration
+        public int StandardDurationWeeks { get; set; }
+
+        // NEW: Admin weekly classes
+        public int StandardClassesPerWeek { get; set; }
     }
 
     public class UpdateStudentStatusDTO

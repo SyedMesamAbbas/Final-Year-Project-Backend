@@ -531,7 +531,8 @@ namespace HouseofTutorAPI.Controllers
         [HttpPut("accept-request/{id}")]
         public async Task<IActionResult> AcceptRequest(int id)
         {
-            using var transaction = await db.Database.BeginTransactionAsync();
+            using var transaction =
+                await db.Database.BeginTransactionAsync();
 
             try
             {
@@ -543,13 +544,15 @@ namespace HouseofTutorAPI.Controllers
                 request = request!;
 
                 RequestCoursePlan? plan = null;
+
                 RequestGroup? group = null;
 
                 if (request.RequestGroupId.HasValue)
                 {
                     group = await db.RequestGroups
                         .FirstOrDefaultAsync(g =>
-                            g.RequestGroupId == request.RequestGroupId.Value);
+                            g.RequestGroupId ==
+                            request.RequestGroupId.Value);
 
                     if (group != null)
                     {
@@ -560,14 +563,10 @@ namespace HouseofTutorAPI.Controllers
                 }
 
                 // =====================================================
-                // ACCELERATED COURSE PLAN
+                // NORMAL AND ACCELERATED COURSE PLANS
                 // =====================================================
 
-                if (plan != null &&
-                    string.Equals(
-                        plan.PlanType,
-                        "Accelerated",
-                        StringComparison.OrdinalIgnoreCase))
+                if (plan != null)
                 {
                     if (group == null ||
                         !request.StudentId.HasValue ||
@@ -586,10 +585,11 @@ namespace HouseofTutorAPI.Controllers
                     {
                         return BadRequest(new
                         {
-                            message = "Accelerated plan information is incomplete."
+                            message = "Course plan information is incomplete."
                         });
                     }
 
+                    // Calculate required classes
                     int requiredClasses =
                         plan.RequestedDurationWeeks *
                         plan.RequestedClassesPerWeek;
@@ -598,11 +598,14 @@ namespace HouseofTutorAPI.Controllers
                     {
                         return BadRequest(new
                         {
-                            message = "The accelerated plan total classes do not match the saved course plan."
+                            message = "Course plan total classes do not match."
                         });
                     }
 
-                    // Get tutor and student schedules
+                    // =================================================
+                    // STEP 1: GET TUTOR AND STUDENT SCHEDULES
+                    // =================================================
+
                     var tutorSchedules = await db.Schedules
                         .Where(s => s.TutorId == request.TutorId)
                         .ToListAsync();
@@ -611,14 +614,22 @@ namespace HouseofTutorAPI.Controllers
                         .Where(s => s.StudentId == request.StudentId)
                         .ToListAsync();
 
-                    // Find common weekly slots
+                    // =================================================
+                    // STEP 2: FIND COMMON WEEKLY SLOTS
+                    // =================================================
+
                     var commonSlots = (
                         from tutorSlot in tutorSchedules
+
                         from studentSlot in studentSchedules
+
                         where
                             !string.IsNullOrWhiteSpace(tutorSlot.Day) &&
+
                             !string.IsNullOrWhiteSpace(studentSlot.Day) &&
+
                             !string.IsNullOrWhiteSpace(tutorSlot.Time) &&
+
                             !string.IsNullOrWhiteSpace(studentSlot.Time) &&
 
                             NormalizePlanDay(tutorSlot.Day) ==
@@ -630,12 +641,15 @@ namespace HouseofTutorAPI.Controllers
                         select new
                         {
                             Day = tutorSlot.Day!,
+
                             Time = tutorSlot.Time!,
 
                             TutorStartDate = tutorSlot.StartDate,
+
                             TutorEndDate = tutorSlot.EndDate,
 
                             StudentStartDate = studentSlot.StartDate,
+
                             StudentEndDate = studentSlot.EndDate
                         }
                     )
@@ -645,27 +659,66 @@ namespace HouseofTutorAPI.Controllers
                     .Select(g => g.First())
                     .ToList();
 
-                    if (commonSlots.Count < plan.RequestedClassesPerWeek)
+                    // =================================================
+                    // STEP 3: CHECK REQUIRED WEEKLY SLOTS
+                    // =================================================
+
+                    if (commonSlots.Count <
+                        plan.RequestedClassesPerWeek)
                     {
                         return BadRequest(new
                         {
-                            message = "Tutor and student do not have enough common weekly slots for this accelerated plan.",
-                            required_slots_per_week = plan.RequestedClassesPerWeek,
-                            available_common_slots = commonSlots.Count
+                            message = "Tutor and student do not have enough common weekly slots.",
+
+                            required_slots_per_week =
+                                plan.RequestedClassesPerWeek,
+
+                            available_common_slots =
+                                commonSlots.Count
                         });
                     }
 
-                    // Select required common weekly slots
+                    // =================================================
+                    // STEP 4: PRIORITIZE STUDENT'S SELECTED SLOT
+                    // =================================================
+
                     var selectedSlots = commonSlots
+                        .OrderByDescending(s =>
+                            NormalizePlanDay(s.Day) ==
+                            NormalizePlanDay(request.Day) &&
+
+                            NormalizePlanTime(s.Time) ==
+                            NormalizePlanTime(request.Time))
                         .Take(plan.RequestedClassesPerWeek)
                         .ToList();
 
-                    var sessions = new List<(DateOnly Date, string Day, string Time)>();
+                    bool requestedSlotExists = selectedSlots.Any(s =>
+                        NormalizePlanDay(s.Day) ==
+                        NormalizePlanDay(request.Day) &&
+
+                        NormalizePlanTime(s.Time) ==
+                        NormalizePlanTime(request.Time));
+
+                    if (!requestedSlotExists)
+                    {
+                        return BadRequest(new
+                        {
+                            message = "The student's selected day and time are not available in the common tutor/student schedule."
+                        });
+                    }
+
+                    // =================================================
+                    // STEP 5: GENERATE ALL COURSE CLASSES
+                    // =================================================
+
+                    var sessions =
+                        new List<(DateOnly Date, string Day, string Time)>();
 
                     DateOnly startDate = plan.StartDate.Value;
 
-                    // Generate all weekly classes
-                    for (int week = 0; week < plan.RequestedDurationWeeks; week++)
+                    for (int week = 0;
+                         week < plan.RequestedDurationWeeks;
+                         week++)
                     {
                         foreach (var slot in selectedSlots)
                         {
@@ -678,6 +731,7 @@ namespace HouseofTutorAPI.Controllers
                             bool tutorScheduleActive =
                                 (!slot.TutorStartDate.HasValue ||
                                  classDate >= slot.TutorStartDate.Value) &&
+
                                 (!slot.TutorEndDate.HasValue ||
                                  classDate <= slot.TutorEndDate.Value);
 
@@ -685,16 +739,21 @@ namespace HouseofTutorAPI.Controllers
                             bool studentScheduleActive =
                                 (!slot.StudentStartDate.HasValue ||
                                  classDate >= slot.StudentStartDate.Value) &&
+
                                 (!slot.StudentEndDate.HasValue ||
                                  classDate <= slot.StudentEndDate.Value);
 
-                            if (!tutorScheduleActive || !studentScheduleActive)
+                            if (!tutorScheduleActive ||
+                                !studentScheduleActive)
                             {
                                 return BadRequest(new
                                 {
-                                    message = "A selected common schedule is not active for the complete accelerated plan.",
+                                    message = "Selected schedule is not active for the complete course plan.",
+
                                     day = slot.Day,
+
                                     time = slot.Time,
+
                                     date = classDate
                                 });
                             }
@@ -702,8 +761,11 @@ namespace HouseofTutorAPI.Controllers
                             // Check existing accepted classes
                             bool isBusy = await db.Requests.AnyAsync(r =>
                                 r.Status == "Accepted" &&
+
                                 r.ClassDate == classDate &&
+
                                 r.Time == slot.Time &&
+
                                 (
                                     r.TutorId == request.TutorId ||
                                     r.StudentId == request.StudentId
@@ -713,9 +775,12 @@ namespace HouseofTutorAPI.Controllers
                             {
                                 return BadRequest(new
                                 {
-                                    message = "A schedule conflict was found. Please update the student or tutor schedule and try again.",
+                                    message = "A schedule conflict was found. Please update the tutor or student schedule.",
+
                                     day = slot.Day,
+
                                     time = slot.Time,
+
                                     date = classDate
                                 });
                             }
@@ -728,34 +793,55 @@ namespace HouseofTutorAPI.Controllers
                         }
                     }
 
+                    // =================================================
+                    // STEP 6: VALIDATE TOTAL GENERATED CLASSES
+                    // =================================================
+
                     if (sessions.Count != plan.TotalClasses)
                     {
                         return BadRequest(new
                         {
-                            message = "Could not generate all classes for the accelerated plan.",
+                            message = "Could not generate all required classes.",
+
                             expected_classes = plan.TotalClasses,
+
                             generated_classes = sessions.Count
                         });
                     }
 
-                    // Sort classes by date
+                    // =================================================
+                    // STEP 7: SORT CLASSES BY DATE
+                    // =================================================
+
                     sessions = sessions
                         .OrderBy(s => s.Date)
                         .ThenBy(s => NormalizePlanTime(s.Time))
                         .ToList();
 
-                    // Use existing pending request for the first class
+                    // =================================================
+                    // STEP 8: UPDATE FIRST REQUEST
+                    // =================================================
+
                     var firstSession = sessions[0];
 
                     request.Status = "Accepted";
+
                     request.ResponseDeadline = null;
+
                     request.ClassDate = firstSession.Date;
+
                     request.Day = firstSession.Day;
+
                     request.Time = firstSession.Time;
+
                     request.RequestType = "Normal";
+
                     request.RequestDate = DateTime.Now;
 
-                    // Create remaining class requests
+                    // =================================================
+                    // STEP 9: CREATE REMAINING CLASS REQUESTS
+                    // =================================================
+
                     var additionalRequests = new List<Request>();
 
                     for (int i = 1; i < sessions.Count; i++)
@@ -765,24 +851,34 @@ namespace HouseofTutorAPI.Controllers
                         additionalRequests.Add(new Request
                         {
                             StudentId = request.StudentId,
+
                             TutorId = request.TutorId,
+
                             CourseId = request.CourseId,
 
                             RequestDate = DateTime.Now,
+
                             Status = "Accepted",
 
                             Time = session.Time,
+
                             ClassDate = session.Date,
+
                             Day = session.Day,
 
                             RequestType = "Normal",
+
                             ParentRequestId = null,
 
                             LearningMode = request.LearningMode,
+
                             LearningDuration = request.LearningDuration,
-                            LearningDurationUnit = request.LearningDurationUnit,
+
+                            LearningDurationUnit =
+                                request.LearningDurationUnit,
 
                             RequestGroupId = request.RequestGroupId,
+
                             TutorSequence = request.TutorSequence,
 
                             ResponseDeadline = null
@@ -795,34 +891,40 @@ namespace HouseofTutorAPI.Controllers
                     }
 
                     // =================================================
-                    // FIX: APPROVE COURSE PLAN
+                    // STEP 10: APPROVE COURSE PLAN
                     // =================================================
 
-                    // Request status and Course Plan status are different.
-                    // Request uses "Accepted".
-                    // Course Plan uses "Approved".
-
-                    plan.TargetEndDate = sessions.Max(s => s.Date);
+                    plan.TargetEndDate =
+                        sessions.Max(s => s.Date);
 
                     plan.Status = "Approved";
+
                     plan.ApprovedDate = DateTime.Now;
+
                     plan.ApprovedByTutorId = request.TutorId.Value;
 
                     // Close request group
                     group.Status = "Accepted";
+
                     group.CurrentRequestId = request.RequestId;
 
-                    // Cancel other tutors in the same request group
+                    // Cancel other tutors
                     var otherRequests = await db.Requests
                         .Where(r =>
                             r.RequestGroupId == group.RequestGroupId &&
+
                             r.RequestId != request.RequestId &&
-                            (r.Status == "Queued" || r.Status == "Pending"))
+
+                            (
+                                r.Status == "Queued" ||
+                                r.Status == "Pending"
+                            ))
                         .ToListAsync();
 
                     foreach (var other in otherRequests)
                     {
                         other.Status = "Cancelled";
+
                         other.ResponseDeadline = null;
                     }
 
@@ -830,26 +932,42 @@ namespace HouseofTutorAPI.Controllers
 
                     await transaction.CommitAsync();
 
+                    // =================================================
+                    // STEP 11: RESPONSE
+                    // =================================================
+
                     return Ok(new
                     {
                         success = true,
-                        message = "Accelerated course plan approved and classes scheduled successfully.",
+
+                        message = "Course plan approved and all classes scheduled successfully.",
 
                         request_group_id = group.RequestGroupId,
 
                         plan_id = plan.PlanId,
 
                         plan_type = plan.PlanType,
+
                         plan_status = plan.Status,
 
                         approved_date = plan.ApprovedDate,
-                        approved_by_tutor_id = plan.ApprovedByTutorId,
+
+                        approved_by_tutor_id =
+                            plan.ApprovedByTutorId,
+
+                        original_duration_weeks =
+                            plan.OriginalDurationWeeks,
+
+                        original_classes_per_week =
+                            plan.OriginalClassesPerWeek,
+
+                        duration_weeks =
+                            plan.RequestedDurationWeeks,
+
+                        classes_per_week =
+                            plan.RequestedClassesPerWeek,
 
                         total_classes = plan.TotalClasses,
-
-                        classes_per_week = plan.RequestedClassesPerWeek,
-
-                        duration_weeks = plan.RequestedDurationWeeks,
 
                         start_date = plan.StartDate,
 
@@ -858,40 +976,51 @@ namespace HouseofTutorAPI.Controllers
                         generated_classes = sessions.Select(s => new
                         {
                             date = s.Date,
+
                             day = s.Day,
+
                             time = s.Time
                         }).ToList()
                     });
                 }
 
                 // =====================================================
-                // NORMAL REQUEST
+                // LEGACY REQUEST WITHOUT COURSE PLAN
                 // =====================================================
 
                 request.Status = "Accepted";
+
                 request.ResponseDeadline = null;
 
                 if (request.RequestGroupId.HasValue)
                 {
                     group ??= await db.RequestGroups
                         .FirstOrDefaultAsync(g =>
-                            g.RequestGroupId == request.RequestGroupId.Value);
+                            g.RequestGroupId ==
+                            request.RequestGroupId.Value);
 
                     if (group != null)
                     {
                         group.Status = "Accepted";
+
                         group.CurrentRequestId = request.RequestId;
 
                         var others = await db.Requests
                             .Where(r =>
                                 r.RequestGroupId == group.RequestGroupId &&
+
                                 r.RequestId != request.RequestId &&
-                                (r.Status == "Queued" || r.Status == "Pending"))
+
+                                (
+                                    r.Status == "Queued" ||
+                                    r.Status == "Pending"
+                                ))
                             .ToListAsync();
 
                         foreach (var other in others)
                         {
                             other.Status = "Cancelled";
+
                             other.ResponseDeadline = null;
                         }
                     }
@@ -904,6 +1033,7 @@ namespace HouseofTutorAPI.Controllers
                 return Ok(new
                 {
                     success = true,
+
                     message = "Request accepted successfully."
                 });
             }
@@ -914,7 +1044,9 @@ namespace HouseofTutorAPI.Controllers
                 return StatusCode(500, new
                 {
                     success = false,
+
                     message = "Error while accepting request.",
+
                     error = ex.InnerException?.Message ?? ex.Message
                 });
             }
@@ -2760,35 +2892,157 @@ namespace HouseofTutorAPI.Controllers
         }
 
         //Complete the class
+        [Authorize]
         [HttpPut("complete-class/{requestId}")]
         public async Task<IActionResult> CompleteClass(int requestId)
         {
             try
             {
-                // Find request by ID
+                // STEP 1: Get logged-in tutor
+                var userIdClaim =
+                    User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                if (!int.TryParse(userIdClaim, out int userId))
+                {
+                    return Unauthorized(new
+                    {
+                        success = false,
+                        message = "Invalid user token."
+                    });
+                }
+
+                var tutor = await db.Tutors
+                    .FirstOrDefaultAsync(t => t.UserId == userId);
+
+                if (tutor == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Tutor not found."
+                    });
+                }
+
+                // STEP 2: Find class
                 var request = await db.Requests
-                    .FirstOrDefaultAsync(x => x.RequestId == requestId);
+                    .FirstOrDefaultAsync(r =>
+                        r.RequestId == requestId);
 
                 if (request == null)
                 {
                     return NotFound(new
                     {
                         success = false,
-                        message = "Request not found"
+                        message = "Request not found."
                     });
                 }
 
-                // Update status
+                // STEP 3: Verify class belongs to logged-in tutor
+                if (request.TutorId != tutor.TutorId)
+                {
+                    return Forbid();
+                }
+
+                if (request.Status != "Accepted" &&
+                    request.Status != "Complete")
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Only accepted classes can be marked completed."
+                    });
+                }
+
+                // STEP 4: Mark this individual class completed
                 request.Status = "Complete";
 
-                // Save changes
+                RequestCoursePlan? plan = null;
+
+                int completedClasses = 0;
+
+                int totalClasses = 0;
+
+                bool courseCompleted = false;
+
+                // STEP 5: Find course plan
+                if (request.RequestGroupId.HasValue)
+                {
+                    plan = await db.RequestCoursePlans
+                        .FirstOrDefaultAsync(p =>
+                            p.RequestGroupId ==
+                            request.RequestGroupId.Value);
+                }
+
+                // STEP 6: Check all classes of this course
+                if (plan != null)
+                {
+                    totalClasses = plan.TotalClasses;
+
+                    var courseRequests = await db.Requests
+                        .Where(r =>
+                            r.RequestGroupId == request.RequestGroupId &&
+
+                            r.StudentId == request.StudentId &&
+
+                            r.TutorId == tutor.TutorId &&
+
+                            r.CourseId == request.CourseId &&
+
+                            r.Status != "Cancelled" &&
+
+                            r.Status != "Rejected")
+                        .ToListAsync();
+
+                    completedClasses = courseRequests
+                        .Count(r => r.Status == "Complete");
+
+                    // STEP 7: Complete the entire course
+                    if (courseRequests.Count >= plan.TotalClasses &&
+                        completedClasses >= plan.TotalClasses)
+                    {
+                        plan.Status = "Completed";
+
+                        plan.TargetEndDate =
+                            request.ClassDate;
+
+                        courseCompleted = true;
+                    }
+                }
+
+                // STEP 8: Save changes
                 await db.SaveChangesAsync();
 
+                // STEP 9: Return response
                 return Ok(new
                 {
                     success = true,
-                    message = "Class marked as complete successfully",
-                    data = request
+
+                    message = courseCompleted
+                        ? "Class completed. All required course classes are now completed."
+                        : "Class marked as completed successfully.",
+
+                    request_id = request.RequestId,
+
+                    class_status = request.Status,
+
+                    plan_id = plan?.PlanId,
+
+                    plan_status = plan?.Status,
+
+                    completed_classes = completedClasses,
+
+                    total_classes = totalClasses,
+
+                    remaining_classes = Math.Max(
+                        0,
+                        totalClasses - completedClasses
+                    ),
+
+                    course_completed = courseCompleted,
+
+                    tutor_available = courseCompleted,
+
+                    student_available = courseCompleted
                 });
             }
             catch (Exception ex)
@@ -2796,7 +3050,10 @@ namespace HouseofTutorAPI.Controllers
                 return StatusCode(500, new
                 {
                     success = false,
-                    message = ex.Message
+
+                    message = "Error completing class.",
+
+                    error = ex.InnerException?.Message ?? ex.Message
                 });
             }
         }
@@ -3089,17 +3346,24 @@ namespace HouseofTutorAPI.Controllers
             return Ok(result);
         }
 
- 
+
         [Authorize]
         [HttpPost("mark-course-done")]
         public async Task<IActionResult> MarkCourseDone([FromBody] MarkCourseDoneRequest request)
         {
             try
             {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                // STEP 1: Logged-in tutor
+                var userIdClaim =
+                    User.FindFirst(ClaimTypes.NameIdentifier);
 
                 if (userIdClaim == null)
-                    return Unauthorized(new { message = "Invalid token." });
+                {
+                    return Unauthorized(new
+                    {
+                        message = "Invalid token."
+                    });
+                }
 
                 int userId = int.Parse(userIdClaim.Value);
 
@@ -3107,38 +3371,122 @@ namespace HouseofTutorAPI.Controllers
                     .FirstOrDefaultAsync(t => t.UserId == userId);
 
                 if (tutor == null)
-                    return NotFound(new { message = "Tutor not found." });
+                {
+                    return NotFound(new
+                    {
+                        message = "Tutor not found."
+                    });
+                }
 
-                // Verify student exists
+                // STEP 2: Verify student
                 var student = await db.Students
-                    .FirstOrDefaultAsync(s => s.StudentId == request.StudentId);
+                    .FirstOrDefaultAsync(s =>
+                        s.StudentId == request.StudentId);
 
                 if (student == null)
+                {
                     return BadRequest(new
                     {
                         message = "Student not found."
                     });
+                }
 
-                // Verify tutor teaches this course
+                // STEP 3: Verify tutor course
                 var tutorCourse = await db.TutorCourses
                     .FirstOrDefaultAsync(tc =>
                         tc.TutorId == tutor.TutorId &&
                         tc.CourseId == request.CourseId);
 
                 if (tutorCourse == null)
+                {
                     return BadRequest(new
                     {
                         message = "Course not assigned to tutor."
                     });
+                }
 
-                // Mark course completed
-                tutorCourse.IsCompleted = true;
-                tutorCourse.CompletedDate = DateTime.Now;
+                // STEP 4: Get the approved course plan
+                var plan = await db.RequestCoursePlans
+                    .Include(p => p.RequestGroup)
+                    .Where(p =>
+                        p.RequestGroup.StudentId == request.StudentId &&
 
-                if (!string.IsNullOrWhiteSpace(request.Grade))
-                    tutorCourse.Grade = request.Grade.Trim().ToUpper();
+                        p.RequestGroup.CourseId == request.CourseId &&
 
-                // Hourly rate
+                        p.ApprovedByTutorId == tutor.TutorId)
+                    .OrderByDescending(p => p.CreatedDate)
+                    .FirstOrDefaultAsync();
+
+                if (plan != null)
+                {
+                    // Course must already be completed through
+                    // individual class completion.
+                    if (plan.Status != "Completed")
+                    {
+                        return BadRequest(new
+                        {
+                            message = "You cannot mark this course done yet. All required classes must first be completed.",
+
+                            required_classes = plan.TotalClasses,
+
+                            plan_status = plan.Status
+                        });
+                    }
+                }
+
+                // STEP 5: Get actual classes
+                var classesQuery = db.Requests.Where(r =>
+                    r.StudentId == request.StudentId &&
+
+                    r.TutorId == tutor.TutorId &&
+
+                    r.CourseId == request.CourseId);
+
+                if (plan != null)
+                {
+                    classesQuery = classesQuery.Where(r =>
+                        r.RequestGroupId == plan.RequestGroupId);
+                }
+
+                var classes = await classesQuery.ToListAsync();
+
+                if (!classes.Any())
+                {
+                    return BadRequest(new
+                    {
+                        message = "No classes found."
+                    });
+                }
+
+                // Never automatically complete remaining classes.
+                int completedCount = classes.Count(c =>
+                    c.Status == "Complete");
+
+                int requiredCount = plan?.TotalClasses ?? classes.Count;
+
+                if (completedCount < requiredCount)
+                {
+                    return BadRequest(new
+                    {
+                        message = "All required classes must be completed before finalizing the course.",
+
+                        completed_classes = completedCount,
+
+                        required_classes = requiredCount,
+
+                        remaining_classes = requiredCount - completedCount
+                    });
+                }
+
+                if (classes.Any(c => c.Status != "Complete"))
+                {
+                    return BadRequest(new
+                    {
+                        message = "Some scheduled classes are not completed."
+                    });
+                }
+
+                // STEP 6: Get hourly rate
                 var rate = await db.TutorCourseRates
                     .FirstOrDefaultAsync(r =>
                         r.TutorId == tutor.TutorId &&
@@ -3152,31 +3500,7 @@ namespace HouseofTutorAPI.Controllers
                     });
                 }
 
-                // Completed classes of this student
-                // Mark all Accepted classes as Complete
-                var classes = await db.Requests
-                    .Where(r =>
-                        r.StudentId == request.StudentId &&
-                        r.TutorId == tutor.TutorId &&
-                        r.CourseId == request.CourseId)
-                    .ToListAsync();
-
-                if (!classes.Any())
-                {
-                    return BadRequest(new
-                    {
-                        message = "No classes found."
-                    });
-                }
-
-                foreach (var cls in classes)
-                {
-                    if (cls.Status == "Accepted")
-                    {
-                        cls.Status = "Complete";
-                    }
-                }
-
+                // STEP 7: Calculate total hours
                 double totalHours = 0;
 
                 foreach (var cls in classes)
@@ -3189,19 +3513,40 @@ namespace HouseofTutorAPI.Controllers
                     if (parts.Length != 2)
                         continue;
 
-                    if (DateTime.TryParse(parts[0].Trim(), out DateTime start) &&
-                        DateTime.TryParse(parts[1].Trim(), out DateTime end))
+                    if (DateTime.TryParse(
+                        parts[0].Trim(),
+                        out DateTime start) &&
+
+                        DateTime.TryParse(
+                            parts[1].Trim(),
+                            out DateTime end))
                     {
-                        totalHours += (end - start).TotalHours;
+                        totalHours +=
+                            (end - start).TotalHours;
                     }
                 }
 
-                decimal totalFee = (decimal)totalHours * rate.HourlyRate;
+                decimal totalFee =
+                    (decimal)totalHours * rate.HourlyRate;
 
+                // STEP 8: Save tutor course completion
+                tutorCourse.IsCompleted = true;
+
+                tutorCourse.CompletedDate = DateTime.Now;
+
+                if (!string.IsNullOrWhiteSpace(request.Grade))
+                {
+                    tutorCourse.Grade =
+                        request.Grade.Trim().ToUpper();
+                }
+
+                // STEP 9: Create or update student course fee
                 var fee = await db.StudentCourseFees
                     .FirstOrDefaultAsync(f =>
                         f.StudentId == request.StudentId &&
+
                         f.TutorId == tutor.TutorId &&
+
                         f.CourseId == request.CourseId);
 
                 if (fee == null)
@@ -3209,15 +3554,20 @@ namespace HouseofTutorAPI.Controllers
                     db.StudentCourseFees.Add(new StudentCourseFee
                     {
                         StudentId = request.StudentId,
+
                         TutorId = tutor.TutorId,
+
                         CourseId = request.CourseId,
+
                         TotalFee = totalFee,
+
                         CreatedDate = DateTime.Now
                     });
                 }
                 else
                 {
                     fee.TotalFee = totalFee;
+
                     fee.CreatedDate = DateTime.Now;
                 }
 
@@ -3225,18 +3575,36 @@ namespace HouseofTutorAPI.Controllers
 
                 return Ok(new
                 {
-                    message = "Course marked as completed successfully.",
-                    totalHours,
+                    success = true,
+
+                    message = "Course finalized successfully.",
+
+                    student_id = request.StudentId,
+
+                    tutor_id = tutor.TutorId,
+
+                    course_id = request.CourseId,
+
+                    completed_classes = completedCount,
+
+                    total_classes = requiredCount,
+
+                    totalHours = totalHours,
+
                     hourlyRate = rate.HourlyRate,
-                    totalFee
+
+                    totalFee = totalFee,
+
+                    course_status = "Completed"
                 });
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new
                 {
-                    message = ex.InnerException?.Message ?? ex.Message,
-                    stack = ex.StackTrace
+                    message = "Error finalizing course.",
+
+                    error = ex.InnerException?.Message ?? ex.Message
                 });
             }
         }

@@ -97,6 +97,9 @@ public partial class HouseofTutorContext : DbContext
             entity.Property(e => e.HasLabComponent).HasColumnName("has_lab_component");
             entity.Property(e => e.StandardClassesPerWeek).HasColumnName("standard_classes_per_week");
             entity.Property(e => e.StandardDurationWeeks).HasColumnName("standard_duration_weeks");
+            entity.Property(e => e.TotalStandardClasses)
+                .HasComputedColumnSql("([standard_duration_weeks]*[standard_classes_per_week])", true)
+                .HasColumnName("total_standard_classes");
         });
 
         modelBuilder.Entity<CourseCode>(entity =>
@@ -1079,7 +1082,7 @@ public partial class HouseofTutorContext : DbContext
                 .IsUnicode(false)
                 .HasColumnName("role");
         });
-
+        
         modelBuilder.Entity<TutorCourseProgrammingLanguage>(entity =>
         {
             entity.ToTable("Tutor_Course_Programming_Language");

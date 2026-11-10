@@ -15,9 +15,11 @@ public partial class Course
 
     public bool HasLabComponent { get; set; }
 
-    public int? StandardDurationWeeks { get; set; }
+    public int StandardDurationWeeks { get; set; }
 
-    public int? StandardClassesPerWeek { get; set; }
+    public int StandardClassesPerWeek { get; set; }
+
+    public int? TotalStandardClasses { get; set; }
 
     public virtual ICollection<CourseCode> CourseCodes { get; set; } = new List<CourseCode>();
 
